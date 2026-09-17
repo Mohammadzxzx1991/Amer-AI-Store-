@@ -1,0 +1,36 @@
+                            val finalInterests = selectedLocalInterests + aiExtractedInterests
+                            viewModel.completeOnboarding(finalInterests)
+                        },
+                    Button(
+                        onClick = {
+                            viewModel.completeOnboarding(emptySet())
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SecondaryMint),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (lang == "ar") "تخطي بدون اختيار" else "Skip Without Selection",
+                            color = SlateDarkBg,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                        enabled = (selectedLocalInterests.size >= 2),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (lang == "ar") "تأكيد ودخول المتجر" else "Confirm & Enter Marketplace",
+                            color = SlateDarkBg,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PermissionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, desc: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, lang: String) {

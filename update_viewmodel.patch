@@ -1,0 +1,101 @@
+--- app/src/main/java/com/example/ui/ViewModels.kt
++++ app/src/main/java/com/example/ui/ViewModels.kt
+@@ -21,7 +21,8 @@
+     private val bankCardDao: BankCardDao,
+     private val searchQueryDao: SearchQueryDao,
+     private val familyShoppingListDao: FamilyShoppingListDao,
+-    private val storedOrganicItemDao: StoredOrganicItemDao
++    private val storedOrganicItemDao: StoredOrganicItemDao,
++    private val sharedPreferences: android.content.SharedPreferences
+ ) : ViewModel() {
+ 
+     private val TAG = "MarketViewModel"
+@@ -107,6 +108,18 @@
+         loadInitialData()
+         simulateNewOrderIncoming()
+         startAITrendAnalysisLoop()
++        
++        val savedUserId = sharedPreferences.getInt("remembered_user_id", -1)
++        if (savedUserId != -1) {
++            viewModelScope.launch {
++                val user = userDao.getUserById(savedUserId).firstOrNull()
++                if (user != null) {
++                    _currentUser.value = user
++                    _currentRole.value = user.role
++                    _onboardingCompleted.value = user.permissionGranted
++                }
++            }
++        }
+     }
+ 
+     private fun loadInitialData() {
+@@ -974,7 +987,7 @@
+         }
+     }
+ 
+-    fun login(emailOrPhone: String, password: String): Boolean {
++    fun login(emailOrPhone: String, password: String, rememberMe: Boolean = false): Boolean {
+         val isEmail = emailOrPhone.contains("@")
+         if ((emailOrPhone.trim().equals("zxzx.Mohammad91@gmail.com", ignoreCase = true) || emailOrPhone.trim().lowercase() == "admin") && password == "MoAn320222m@") {
+             viewModelScope.launch {
+@@ -999,6 +1012,12 @@
+                 _currentRole.value = "Admin"
+                 _verificationStep.value = 0
+                 updateSavedProducts(adminUser.id)
++                _onboardingCompleted.value = adminUser.permissionGranted
++                if (rememberMe) {
++                    sharedPreferences.edit().putInt("remembered_user_id", adminUser.id).apply()
++                } else {
++                    sharedPreferences.edit().remove("remembered_user_id").apply()
++                }
+             }
+             return true
+         } else {
+@@ -1025,6 +1044,12 @@
+                             _currentRole.value = foundUser.role
+                             _verificationStep.value = 0
+                             updateSavedProducts(foundUser.id)
++                            _onboardingCompleted.value = foundUser.permissionGranted
++                            if (rememberMe) {
++                                sharedPreferences.edit().putInt("remembered_user_id", foundUser.id).apply()
++                            } else {
++                                sharedPreferences.edit().remove("remembered_user_id").apply()
++                            }
+                         }
+                     }
+                 } else {
+@@ -1045,6 +1070,12 @@
+                             _currentRole.value = foundUser.role
+                             _verificationStep.value = 0
+                             updateSavedProducts(foundUser.id)
++                            _onboardingCompleted.value = foundUser.permissionGranted
++                            if (rememberMe) {
++                                sharedPreferences.edit().putInt("remembered_user_id", foundUser.id).apply()
++                            } else {
++                                sharedPreferences.edit().remove("remembered_user_id").apply()
++                            }
+                         }
+                     }
+                 }
+@@ -1055,6 +1086,13 @@
+     }
+ 
+     fun logout() {
++        sharedPreferences.edit().remove("remembered_user_id").apply()
+         _currentUser.value = null
+         _currentRole.value = "Customer"
+         _verificationStep.value = 0
+@@ -1373,6 +1411,13 @@
+     fun completeOnboarding(interests: Set<String>) {
+         _chosenInterests.value = interests
+         _onboardingCompleted.value = true
++        _currentUser.value?.let { user ->
++            viewModelScope.launch {
++                val updatedUser = user.copy(permissionGranted = true)
++                userDao.insertUser(updatedUser)
++                _currentUser.value = updatedUser
++            }
++        }
+         queryGeminiRecommendations(interests)
+     }
+ 
