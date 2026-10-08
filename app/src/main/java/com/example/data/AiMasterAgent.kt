@@ -117,7 +117,7 @@ object AiMasterAgentOrchestrator {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Master Agent execution error for $resolvedTool", e)
+            Log.e(TAG, "Master Agent execution error for $resolvedTool: ${e.message}")
             "Error executing ${resolvedTool.name}: ${e.message}"
         } finally {
             _isAgentBusy.value = false

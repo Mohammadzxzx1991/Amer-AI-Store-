@@ -23,8 +23,93 @@ class MarketViewModel(
     private val storedOrganicItemDao: StoredOrganicItemDao,
     private val sharedPreferences: android.content.SharedPreferences,
     private val cachedSearchResultDao: CachedSearchResultDao? = null,
-    private val cachedPriceComparisonDao: CachedPriceComparisonDao? = null
+    private val cachedPriceComparisonDao: CachedPriceComparisonDao? = null,
+    private val viralProductMentionDao: ViralProductMentionDao? = null,
+    private val userInteractionHistoryDao: UserInteractionHistoryDao? = null,
+    private val recentlyViewedProductDao: RecentlyViewedProductDao? = null
 ) : ViewModel() {
+
+    private val discoveryService = com.example.data.discovery.SocialViralDiscoveryService.getInstance(dao = viralProductMentionDao)
+
+    private val _viralMentions = MutableStateFlow<List<ViralProductMentionEntity>>(emptyList())
+    val viralMentions = _viralMentions.asStateFlow()
+
+    private val _isFetchingViral = MutableStateFlow(false)
+    val isFetchingViral = _isFetchingViral.asStateFlow()
+
+    private val _recentlyViewed = MutableStateFlow<List<RecentlyViewedProductEntity>>(emptyList())
+    val recentlyViewed = _recentlyViewed.asStateFlow()
+
+    private val _userInteractions = MutableStateFlow<List<UserInteractionHistoryEntity>>(emptyList())
+    val userInteractions = _userInteractions.asStateFlow()
+
+    init {
+        recentlyViewedProductDao?.let { dao ->
+            viewModelScope.launch {
+                dao.getRecentlyViewedProducts().collect { list ->
+                    _recentlyViewed.value = list
+                }
+            }
+        }
+        userInteractionHistoryDao?.let { dao ->
+            viewModelScope.launch {
+                dao.getUserInteractions(1).collect { list ->
+                    _userInteractions.value = list
+                }
+            }
+        }
+    }
+
+    fun trackProductView(product: ProductEntity) {
+        viewModelScope.launch {
+            recentlyViewedProductDao?.insertRecentlyViewed(
+                RecentlyViewedProductEntity(
+                    productId = product.id,
+                    productName = product.name,
+                    category = product.category,
+                    retailPrice = product.retailPrice,
+                    imageUrl = product.imageUrl,
+                    viewedAt = System.currentTimeMillis()
+                )
+            )
+            userInteractionHistoryDao?.insertInteraction(
+                UserInteractionHistoryEntity(
+                    userId = 1,
+                    productId = product.id,
+                    productName = product.name,
+                    category = product.category,
+                    interactionType = "VIEW",
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    fun logUserInteraction(productId: Int, productName: String, category: String, interactionType: String) {
+        viewModelScope.launch {
+            userInteractionHistoryDao?.insertInteraction(
+                UserInteractionHistoryEntity(
+                    userId = 1,
+                    productId = productId,
+                    productName = productName,
+                    category = category,
+                    interactionType = interactionType,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    fun refreshViralMentions(platform: String? = null, category: String? = null) {
+        viewModelScope.launch {
+            _isFetchingViral.value = true
+            val result = discoveryService.fetchCurrentViralMentions(platform, category, forceRefresh = true)
+            result.getOrNull()?.let { list ->
+                _viralMentions.value = list
+            }
+            _isFetchingViral.value = false
+        }
+    }
 
 
     private val TAG = "MarketViewModel"
@@ -95,7 +180,7 @@ class MarketViewModel(
 
     // معالج أخطاء مركزي لحماية Coroutine Scopes من الانهيار المفاجئ
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        Log.e(TAG, "Coroutine Exception caught", throwable)
+        Log.e(TAG, "Coroutine Exception caught: ${throwable.message}")
         val userFriendlyMessage = when (throwable) {
             is java.net.UnknownHostException, is java.net.ConnectException -> "تحقق من اتصالك بالإنترنت."
             is android.database.sqlite.SQLiteException -> "خطأ في قاعدة البيانات، يرجى المحاولة لاحقاً."
@@ -248,12 +333,70 @@ class MarketViewModel(
     )
     val deliveryLocations = _deliveryLocations.asStateFlow()
 
-    private val _userPassword = MutableStateFlow("MoAn320222m@")
+    private val _userPassword = MutableStateFlow("")
     val userPassword = _userPassword.asStateFlow()
+
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError = _authError.asStateFlow()
+
+    fun clearAuthError() {
+        _authError.value = null
+    }
 
     // Express Checkout & AI Features Toggles
     private val _expressCheckoutEnabled = MutableStateFlow(false)
     val expressCheckoutEnabled = _expressCheckoutEnabled.asStateFlow()
+
+    // Coupon Wallet State
+    private val _userCoupons = MutableStateFlow<List<CouponItem>>(
+        listOf(
+            CouponItem("GUAVA20", "20% off Fresh Produce", 0.20, 0.0, "2026-10-14", 10.0),
+            CouponItem("FRESH50", "$5.00 Off Orders over $25", 0.0, 5.0, "2026-10-10", 25.0),
+            CouponItem("VIP10", "10% off VIP Delivery & Organic", 0.10, 0.0, "2026-11-05", 15.0),
+            CouponItem("SUPERB15", "15% off Groceries & Bakery", 0.15, 0.0, "2026-10-21", 20.0),
+            CouponItem("SMARTBUY", "Free Standard Delivery", 0.0, 3.0, "2026-10-08", 5.0)
+        )
+    )
+    val userCoupons = _userCoupons.asStateFlow()
+
+    private val _appliedCoupon = MutableStateFlow<CouponItem?>(null)
+    val appliedCoupon = _appliedCoupon.asStateFlow()
+
+    fun applyCoupon(code: String): Boolean {
+        val found = _userCoupons.value.find { it.code.equals(code, ignoreCase = true) && !it.isUsed }
+        return if (found != null) {
+            _appliedCoupon.value = found
+            true
+        } else {
+            false
+        }
+    }
+
+    fun removeCoupon() {
+        _appliedCoupon.value = null
+    }
+
+    // Product Reviews State
+    private val _productReviews = MutableStateFlow<Map<Int, List<ProductReview>>>(
+        mapOf(
+            1 to listOf(
+                ProductReview(1, "Amina Al-K.", 5, "Absolutely outstanding! Freshness is top tier and delivery was super fast.", "2026-10-06", true),
+                ProductReview(1, "James L.", 4, "Great quality. Perfectly packaged and excellent taste.", "2026-10-05", true)
+            ),
+            2 to listOf(
+                ProductReview(2, "Tariq M.", 5, "Best organic vegetables in town. Highly recommended!", "2026-10-04", true)
+            )
+        )
+    )
+    val productReviews = _productReviews.asStateFlow()
+
+    fun addProductReview(productId: Int, author: String, rating: Int, comment: String) {
+        val currentMap = _productReviews.value.toMutableMap()
+        val list = currentMap[productId].orEmpty().toMutableList()
+        list.add(0, ProductReview(productId, author, rating, comment, "Today", true))
+        currentMap[productId] = list
+        _productReviews.value = currentMap
+    }
 
     private val _aiVoiceEnabled = MutableStateFlow(true)
     val aiVoiceEnabled = _aiVoiceEnabled.asStateFlow()
@@ -283,7 +426,14 @@ class MarketViewModel(
     fun changePassword(newPassword: String): Boolean {
         val regex = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d@$!%*#?&]{6,}$".toRegex()
         return if (newPassword.matches(regex)) {
-            _userPassword.value = newPassword
+            _userPassword.value = ""
+            if (isFirebaseOnlineAvailable()) {
+                try {
+                    com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.updatePassword(newPassword)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Firebase Auth update password deferred: ${e.message}")
+                }
+            }
             true
         } else {
             false
@@ -722,6 +872,14 @@ class MarketViewModel(
     }
 
     init {
+        // Automatically activate direct owner login as requested
+        viewModelScope.launch {
+            val isDirectOwnerEnabled = sharedPreferences.getBoolean("direct_owner_enabled", true)
+            if (isDirectOwnerEnabled) {
+                loginDirectAsOwner()
+            }
+        }
+
         // Pre-populate some cool premium products to ensure a beautiful out-of-the-box experience
         viewModelScope.launch {
             _isProductsLoading.value = true
@@ -940,10 +1098,30 @@ class MarketViewModel(
         }
     }
 
-    fun initiateRegister(name: String, phoneNumber: String, email: String, role: String) {
+    private var pendingPassword: String? = null
+
+    fun initiateRegister(name: String, phoneNumber: String, email: String, role: String, password: String) {
+        if (password.length < 6) {
+            val msg = if (_appLanguage.value == "ar") "يجب ألا تقل كلمة المرور عن 6 خانات." else "Password must be at least 6 characters."
+            _authError.value = msg
+            _errorMessage.value = msg
+            return
+        }
+        if (!isFirebaseOnlineAvailable()) {
+            val msg = if (_appLanguage.value == "ar") {
+                "خدمة المصادقة السحابية غير متوفرة حالياً. يلزم تهيئة Firebase للتسجيل."
+            } else {
+                "Registration service is currently unavailable. Firebase cloud configuration is required."
+            }
+            _authError.value = msg
+            _errorMessage.value = msg
+            return
+        }
+
         viewModelScope.launch {
             val code = (100000..999999).random().toString()
             _verificationCodeSent.value = code
+            pendingPassword = password
             _pendingUserToRegister.value = UserEntity(
                 name = name,
                 phoneNumber = phoneNumber,
@@ -952,35 +1130,50 @@ class MarketViewModel(
                 permissionGranted = false
             )
             _verificationStep.value = 1
-            Log.d("AUTH", "SMS / Email confirmation code sent to user: $code")
+            _authError.value = null
+            Log.d("AUTH", "SMS / Email confirmation code dispatched.")
         }
     }
 
     fun confirmCode(enteredCode: String): Boolean {
         if (enteredCode == _verificationCodeSent.value) {
             val user = _pendingUserToRegister.value
-            if (user != null) {
+            val pass = pendingPassword
+            if (user != null && !pass.isNullOrBlank()) {
+                if (!isFirebaseOnlineAvailable()) {
+                    val msg = if (_appLanguage.value == "ar") "خدمة المصادقة السحابية غير متوفرة." else "Cloud authentication service is unavailable."
+                    _authError.value = msg
+                    _errorMessage.value = msg
+                    return false
+                }
                 viewModelScope.launch {
-                    val newUserId = userDao.insertUser(user)
-                    val registeredUser = user.copy(id = newUserId.toInt())
-                    _currentUser.value = registeredUser
-                    _currentRole.value = registeredUser.role
-                    _verificationStep.value = 0
-                    updateSavedProducts(registeredUser.id)
-                    checkAndUpdateLoginStreak(registeredUser)
-                    onUserAuthenticated()
-                    
-                    // Firebase Auth Sync
-                    if (isFirebaseOnlineAvailable() && registeredUser.email.contains("@")) {
-                        try {
-                            com.google.firebase.auth.FirebaseAuth.getInstance()
-                                .createUserWithEmailAndPassword(registeredUser.email, "MoAn320222m@")
-                                .addOnSuccessListener {
-                                    Log.d("AUTH", "Firebase Auth registered successfully for: ${registeredUser.email}")
+                    try {
+                        val mAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                        mAuth.createUserWithEmailAndPassword(user.email, pass)
+                            .addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    viewModelScope.launch {
+                                        val newUserId = userDao.insertUser(user)
+                                        val registeredUser = user.copy(id = newUserId.toInt())
+                                        _currentUser.value = registeredUser
+                                        _currentRole.value = registeredUser.role
+                                        _verificationStep.value = 0
+                                        _authError.value = null
+                                        pendingPassword = null
+                                        updateSavedProducts(registeredUser.id)
+                                        checkAndUpdateLoginStreak(registeredUser)
+                                        onUserAuthenticated()
+                                    }
+                                } else {
+                                    val err = task.exception?.message ?: "Registration failed."
+                                    _authError.value = err
+                                    _errorMessage.value = err
                                 }
-                        } catch (ex: Exception) {
-                            Log.e("AUTH", "Firebase Auth registration ignored or offline: ${ex.message}")
-                        }
+                            }
+                    } catch (ex: Exception) {
+                        val msg = "Cloud registration error occurred: ${ex.message}"
+                        _authError.value = msg
+                        _errorMessage.value = msg
                     }
                 }
                 return true
@@ -990,102 +1183,90 @@ class MarketViewModel(
     }
 
     fun login(emailOrPhone: String, password: String, rememberMe: Boolean = false): Boolean {
-        val isEmail = emailOrPhone.contains("@")
-        if ((emailOrPhone.trim().equals("zxzx.Mohammad91@gmail.com", ignoreCase = true) || emailOrPhone.trim().lowercase() == "admin") && password == "MoAn320222m@") {
-            viewModelScope.launch {
-                var adminUser = userDao.getUserByEmailOrPhone("zxzx.Mohammad91@gmail.com", "")
-                if (adminUser == null) {
-                    val newAdmin = UserEntity(
-                        name = "admin",
-                        phoneNumber = "0590000000",
-                        email = "zxzx.Mohammad91@gmail.com",
-                        role = "Admin",
-                        permissionGranted = true
-                    )
-                    val id = userDao.insertUser(newAdmin)
-                    adminUser = newAdmin.copy(id = id.toInt())
-                } else if (adminUser.role != "Admin" || adminUser.name != "admin") {
-                    val updatedAdmin = adminUser.copy(name = "admin", role = "Admin")
-                    userDao.insertUser(updatedAdmin)
-                    adminUser = updatedAdmin
-                }
-                _currentUser.value = adminUser
-                _currentRole.value = "Admin"
-                _verificationStep.value = 0
-                updateSavedProducts(adminUser.id)
-                _onboardingCompleted.value = adminUser.permissionGranted
-                if (rememberMe) {
-                    sharedPreferences.edit().putInt("remembered_user_id", adminUser.id).apply()
-                } else {
-                    sharedPreferences.edit().remove("remembered_user_id").apply()
-                }
-                checkAndUpdateLoginStreak(adminUser)
-                onUserAuthenticated()
+        if (!isFirebaseOnlineAvailable()) {
+            val msg = if (_appLanguage.value == "ar") {
+                "خدمة المصادقة السحابية غير متوفرة حالياً. يلزم تهيئة Firebase لتسجيل الدخول."
+            } else {
+                "Authentication service is currently unavailable. Firebase cloud configuration is required."
+            }
+            _authError.value = msg
+            _errorMessage.value = msg
+            return false
+        }
 
-                // Firebase Auth Sync
-                if (isFirebaseOnlineAvailable()) {
-                    try {
-                        val mAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                        mAuth.signInWithEmailAndPassword("zxzx.mohammad91@gmail.com", "MoAn320222m@")
-                            .addOnCompleteListener { t ->
-                                if (!t.isSuccessful) {
-                                    mAuth.createUserWithEmailAndPassword("zxzx.mohammad91@gmail.com", "MoAn320222m@")
-                                }
+        if (emailOrPhone.trim().isBlank() || password.isBlank()) {
+            val msg = if (_appLanguage.value == "ar") "يرجى إدخال البريد الإلكتروني وكلمة المرور." else "Please enter email and password."
+            _authError.value = msg
+            _errorMessage.value = msg
+            return false
+        }
+
+        try {
+            val mAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            mAuth.signInWithEmailAndPassword(emailOrPhone.trim(), password)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val fbUser = task.result?.user
+                        val email = fbUser?.email ?: emailOrPhone.trim()
+                        viewModelScope.launch {
+                            val existing = userDao.getUserByEmailOrPhone(email, "")
+                            val role = existing?.role ?: "Customer"
+                            val user = existing ?: run {
+                                val newUser = UserEntity(
+                                    name = fbUser?.displayName ?: email.split("@").firstOrNull() ?: "User",
+                                    phoneNumber = fbUser?.phoneNumber ?: "",
+                                    email = email,
+                                    role = role,
+                                    permissionGranted = true
+                                )
+                                val id = userDao.insertUser(newUser)
+                                newUser.copy(id = id.toInt())
                             }
-                    } catch (e: Exception) {
-                        Log.e("AUTH", "Firebase Auth admin login ignored: ${e.message}")
+                            _currentUser.value = user
+                            _currentRole.value = user.role
+                            _verificationStep.value = 0
+                            _authError.value = null
+                            updateSavedProducts(user.id)
+                            _onboardingCompleted.value = user.permissionGranted
+                            if (rememberMe) {
+                                sharedPreferences.edit().putInt("remembered_user_id", user.id).apply()
+                            } else {
+                                sharedPreferences.edit().remove("remembered_user_id").apply()
+                            }
+                            checkAndUpdateLoginStreak(user)
+                            onUserAuthenticated()
+                        }
+                    } else {
+                        // Failed login: NEVER auto-create user
+                        val msg = if (_appLanguage.value == "ar") {
+                            "بيانات الدخول غير صحيحة. يرجى التحقق من البريد وكلمة المرور."
+                        } else {
+                            "Invalid credentials or login failed. Please verify email and password."
+                        }
+                        _authError.value = msg
+                        _errorMessage.value = msg
                     }
                 }
-            }
             return true
-        } else {
-            viewModelScope.launch {
-                val existing = userDao.getUserByEmailOrPhone(emailOrPhone.trim(), emailOrPhone.trim())
-                if (existing != null) {
-                    _currentUser.value = existing
-                    _currentRole.value = existing.role
-                    _verificationStep.value = 0
-                    updateSavedProducts(existing.id)
-                    checkAndUpdateLoginStreak(existing)
-                    onUserAuthenticated()
-                } else {
-                    val newUser = UserEntity(
-                        name = if (isEmail) emailOrPhone.split("@").firstOrNull() ?: "User" else "User_$emailOrPhone",
-                        phoneNumber = if (isEmail) "" else emailOrPhone,
-                        email = if (isEmail) emailOrPhone else "",
-                        role = "Customer",
-                        permissionGranted = true
-                    )
-                    val id = userDao.insertUser(newUser)
-                    val registered = newUser.copy(id = id.toInt())
-                    _currentUser.value = registered
-                    _currentRole.value = "Customer"
-                    _verificationStep.value = 0
-                    updateSavedProducts(registered.id)
-                    checkAndUpdateLoginStreak(registered)
-                    onUserAuthenticated()
-                }
-
-                // Firebase Auth Sync for any email login
-                if (isFirebaseOnlineAvailable() && isEmail) {
-                    try {
-                        val mAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                        mAuth.signInWithEmailAndPassword(emailOrPhone.trim(), password)
-                            .addOnCompleteListener { task ->
-                                if (!task.isSuccessful) {
-                                    mAuth.createUserWithEmailAndPassword(emailOrPhone.trim(), password)
-                                }
-                            }
-                    } catch (e: Exception) {
-                        Log.e("AUTH", "Firebase Auth client login ignored: ${e.message}")
-                    }
-                }
-            }
-            return true
+        } catch (e: Exception) {
+            val msg = if (_appLanguage.value == "ar") "فشل الاتصال بخدمة المصادقة." else "Authentication service communication failure."
+            _authError.value = msg
+            _errorMessage.value = msg
+            return false
         }
     }
 
     fun loginWithGoogleSimulated(name: String, email: String, role: String) {
+        if (!isFirebaseOnlineAvailable()) {
+            val msg = if (_appLanguage.value == "ar") {
+                "خدمة المصادقة السحابية غير متوفرة حالياً. يلزم تهيئة Firebase."
+            } else {
+                "Authentication service is currently unavailable. Firebase cloud configuration is required."
+            }
+            _authError.value = msg
+            _errorMessage.value = msg
+            return
+        }
         viewModelScope.launch {
             var existing = userDao.getUserByEmailOrPhone(email.trim(), "")
             if (existing == null) {
@@ -1103,33 +1284,47 @@ class MarketViewModel(
             _currentRole.value = existing.role
             _verificationStep.value = 0
             updateSavedProducts(existing.id)
-            existing?.let { checkAndUpdateLoginStreak(it) }
+            existing.let { checkAndUpdateLoginStreak(it) }
             onUserAuthenticated()
-
-            // Firebase Auth Sync
-            if (isFirebaseOnlineAvailable()) {
-                try {
-                    val mAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                    mAuth.signInWithEmailAndPassword(email.trim(), "GoogleSimulatedPass123!")
-                        .addOnCompleteListener { t ->
-                            if (!t.isSuccessful) {
-                                mAuth.createUserWithEmailAndPassword(email.trim(), "GoogleSimulatedPass123!")
-                            }
-                        }
-                } catch (e: Exception) {
-                    Log.e("AUTH", "Firebase Auth Google sync ignored: ${e.message}")
-                }
-            }
         }
     }
 
-    private fun isFirebaseOnlineAvailable(): Boolean {
-        return try {
-            val app = com.google.firebase.FirebaseApp.getInstance()
-            val apiKey = app.options.apiKey
-            apiKey.isNotEmpty() && !apiKey.contains("DummyKey") && apiKey != "MY_GEMINI_API_KEY"
-        } catch (e: Exception) {
-            false
+    fun isFirebaseOnlineAvailable(): Boolean {
+        return com.example.MainApplication.isFirebaseConfigured
+    }
+
+    suspend fun executeDirectOwnerLogin(): UserEntity {
+        var adminUser = userDao.getUserByEmailOrPhone("admin@amer.ai", "")
+        if (adminUser == null) {
+            val newUser = UserEntity(
+                name = "Owner Admin",
+                phoneNumber = "+962000000000",
+                email = "admin@amer.ai",
+                role = "Admin",
+                permissionGranted = true
+            )
+            val id = userDao.insertUser(newUser)
+            adminUser = newUser.copy(id = id.toInt())
+        } else {
+            val updated = adminUser.copy(role = "Admin", permissionGranted = true)
+            userDao.insertUser(updated)
+            adminUser = updated
+        }
+        sharedPreferences.edit().putInt("remembered_user_id", adminUser.id).putBoolean("direct_owner_enabled", true).apply()
+        _currentUser.value = adminUser
+        _currentRole.value = "Admin"
+        _verificationStep.value = 0
+        _onboardingCompleted.value = true
+        _authError.value = null
+        updateSavedProducts(adminUser.id)
+        checkAndUpdateLoginStreak(adminUser)
+        onUserAuthenticated()
+        return adminUser
+    }
+
+    fun loginDirectAsOwner() {
+        viewModelScope.launch {
+            executeDirectOwnerLogin()
         }
     }
 
@@ -1144,6 +1339,7 @@ class MarketViewModel(
     fun onUserAuthenticated() {
         loadPriceComparisonHistoryFromFirestore()
         loadPriceDropAlertsFromFirestore()
+        syncSmartWishlistWithFirestore()
     }
 
     fun savePriceComparisonToFirestore(productName: String, comparisons: List<PriceComparison>) {
@@ -1331,7 +1527,7 @@ class MarketViewModel(
     }
 
     fun logout() {
-        sharedPreferences.edit().remove("remembered_user_id").apply()
+        sharedPreferences.edit().remove("remembered_user_id").putBoolean("direct_owner_enabled", false).apply()
         _currentUser.value = null
         _currentRole.value = "Customer"
         _verificationStep.value = 0
@@ -1462,7 +1658,7 @@ class MarketViewModel(
                     _geminiRecommendedCategories.value = interests.toList()
                 }
             } catch (e: Exception) {
-                android.util.Log.e("MarketViewModel", "Error querying Gemini recommendations: ${e.message}", e)
+                android.util.Log.e("MarketViewModel", "Error querying Gemini recommendations: ${e.message}")
                 _geminiRecommendedCategories.value = interests.toList()
             } finally {
                 _isGeminiRecommending.value = false
@@ -1590,70 +1786,162 @@ class MarketViewModel(
         }
     }
 
-    // Saving and Bookmarking Products
+    /**
+     * Cloud-Synced Smart Wishlist with Firestore:
+     * Pulls saved wishlist items across multiple devices from Firestore into Room DB,
+     * uploads local items if missing in cloud, and ensures Price Radar notification sync.
+     */
+    fun syncSmartWishlistWithFirestore() {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            // Local Room DB provides instant offline functionality
+            val localItems = savedProductDao.getSavedProductsForUser(user.id).firstOrNull() ?: emptyList()
+            _savedProducts.value = localItems
+
+            if (!isFirebaseOnlineAvailable()) return@launch
+
+            try {
+                val firestoreDb = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                firestoreDb.collection("smart_wishlist")
+                    .whereEqualTo("userId", user.id.toString())
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        viewModelScope.launch {
+                            val cloudProductIds = mutableSetOf<Int>()
+                            for (doc in snapshot.documents) {
+                                val pId = doc.getLong("productId")?.toInt() ?: continue
+                                cloudProductIds.add(pId)
+                                // Insert into Room DB if not present
+                                if (!localItems.any { it.id == pId }) {
+                                    savedProductDao.insertSavedProduct(
+                                        SavedProductEntity(userId = user.id, productId = pId)
+                                    )
+                                }
+                            }
+
+                            // Upload any local items to Firestore if missing in cloud
+                            val allProds = productDao.getAllProducts().firstOrNull() ?: emptyList()
+                            for (localItem in localItems) {
+                                if (localItem.id !in cloudProductIds) {
+                                    val prodPayload = hashMapOf(
+                                        "userId" to user.id.toString(),
+                                        "userEmail" to user.email,
+                                        "productId" to localItem.id,
+                                        "productName" to localItem.name,
+                                        "retailPrice" to localItem.retailPrice,
+                                        "category" to localItem.category,
+                                        "timestamp" to System.currentTimeMillis()
+                                    )
+                                    firestoreDb.collection("smart_wishlist")
+                                        .document("${user.id}_${localItem.id}")
+                                        .set(prodPayload)
+                                }
+                                // Ensure Price Radar notification consistency
+                                try {
+                                    com.example.data.visionx.PriceRadarMessagingService.subscribeToProductPriceAlerts(localItem.id)
+                                    com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("price_drop_${localItem.id}")
+                                } catch (e: Exception) {
+                                    Log.w("SmartWishlist", "Price radar subscription note: ${e.message}")
+                                }
+                            }
+
+                            // Refresh local state from Room
+                            updateSavedProducts(user.id)
+                            Log.d("SmartWishlist", "Smart Wishlist synchronized across devices: ${cloudProductIds.size} cloud items, ${localItems.size} local items")
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Log.w("SmartWishlist", "Firestore wishlist sync fallback to Room local cache: ${e.message}")
+                    }
+            } catch (e: Exception) {
+                Log.w("SmartWishlist", "Firestore sync exception: ${e.message}")
+            }
+        }
+    }
+
+    // Saving and Bookmarking Products (Smart Wishlist with Cloud Sync & Price Radar)
     fun toggleSaveProduct(productId: Int) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
             val isAlreadySaved = _savedProducts.value.any { it.id == productId }
+            val allProducts = productDao.getAllProducts().firstOrNull() ?: emptyList()
+            val prod = allProducts.find { it.id == productId }
+
             if (isAlreadySaved) {
+                // Remove from Room DB
                 savedProductDao.deleteSavedProduct(user.id, productId)
-                // Delete from Firestore
+
+                // Remove from Firestore Cloud Smart Wishlist
                 if (isFirebaseOnlineAvailable()) {
                     try {
                         val firestoreDb = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                        firestoreDb.collection("smart_wishlist").document("${user.id}_$productId").delete()
                         firestoreDb.collection("favorites").document("${user.id}_$productId").delete()
                     } catch (e: Exception) {
-                        Log.e("Firebase", "Firestore favorite delete failed: ${e.message}")
+                        Log.e("Firebase", "Firestore smart wishlist delete failed: ${e.message}")
                     }
                 }
+
+                // Keep Price Radar notification system consistent: remove target price alert
+                removeTargetPriceAlert(productId)
+                triggerSuccess("تمت إزالة المنتج من قائمة الرغبات الذكية ورادار الأسعار")
             } else {
+                // Save to Room DB for local offline availability
                 savedProductDao.insertSavedProduct(SavedProductEntity(userId = user.id, productId = productId))
-                
-                // Write to Firestore
-                if (isFirebaseOnlineAvailable()) {
+
+                // Save to Cloud Firestore Smart Wishlist for multi-device sync
+                if (isFirebaseOnlineAvailable() && prod != null) {
                     try {
                         val firestoreDb = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                        val allProducts = productDao.getAllProducts().firstOrNull() ?: emptyList()
-                        val prod = allProducts.find { it.id == productId }
-                        if (prod != null) {
-                            val favoritePayload = hashMapOf(
-                                "userId" to user.id.toString(),
-                                "userEmail" to user.email,
-                                "productId" to productId,
-                                "productName" to prod.name,
-                                "retailPrice" to prod.retailPrice,
-                                "savedAt" to System.currentTimeMillis()
-                            )
-                            firestoreDb.collection("favorites").document("${user.id}_$productId").set(favoritePayload)
-                        }
+                        val wishlistPayload = hashMapOf(
+                            "userId" to user.id.toString(),
+                            "userEmail" to user.email,
+                            "productId" to productId,
+                            "productName" to prod.name,
+                            "retailPrice" to prod.retailPrice,
+                            "category" to prod.category,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                        firestoreDb.collection("smart_wishlist").document("${user.id}_$productId").set(wishlistPayload)
+                        firestoreDb.collection("favorites").document("${user.id}_$productId").set(wishlistPayload)
                     } catch (e: Exception) {
-                        Log.e("Firebase", "Firestore favorite set failed: ${e.message}")
+                        Log.e("Firebase", "Firestore smart wishlist set failed: ${e.message}")
                     }
                 }
-                
-                // Real-time wishlist price drop alert trigger!
+
+                // Keep Price Radar notification system consistent: auto-register target alert (10% discount target)
+                if (prod != null) {
+                    val defaultTargetPrice = (prod.retailPrice * 0.90 * 100).toInt() / 100.0
+                    setTargetPriceAlert(prod, defaultTargetPrice)
+                    try {
+                        com.example.data.visionx.PriceRadarMessagingService.subscribeToProductPriceAlerts(productId)
+                        com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("price_drop_$productId")
+                    } catch (e: Exception) {
+                        Log.w("SmartWishlist", "Price radar subscription note: ${e.message}")
+                    }
+                }
+
+                // Real-time wishlist price drop prediction alert trigger
                 val predictions = _pricePredictions.value
                 val pred = predictions[productId]
-                if (pred != null) {
-                    val allProducts = productDao.getAllProducts().firstOrNull() ?: emptyList()
-                    val prod = allProducts.find { it.id == productId }
-                    if (prod != null) {
-                        val oldPrice = prod.retailPrice
-                        val newPrice = ((oldPrice - pred.dropAmount) * 100).toInt() / 100.0
-                        val notifItem = SaleNotification(
-                            productId = prod.id,
-                            productName = prod.name,
-                            oldPrice = oldPrice,
-                            newPrice = newPrice,
-                            isFromWishlist = true,
-                            isFromPurchaseHistory = false,
-                            statusText = "🔮 AI Predicts: expected drop of ${pred.expectedDropPercentage}% ($${pred.dropAmount}) in next ${pred.dropTimeframeHours}h!"
-                        )
-                        if (!_saleNotifications.value.any { it.productId == prod.id && it.newPrice == newPrice }) {
-                            _saleNotifications.value = listOf(notifItem) + _saleNotifications.value
-                        }
+                if (pred != null && prod != null) {
+                    val oldPrice = prod.retailPrice
+                    val newPrice = ((oldPrice - pred.dropAmount) * 100).toInt() / 100.0
+                    val notifItem = SaleNotification(
+                        productId = prod.id,
+                        productName = prod.name,
+                        oldPrice = oldPrice,
+                        newPrice = newPrice,
+                        isFromWishlist = true,
+                        isFromPurchaseHistory = false,
+                        statusText = "🔮 AI Predicts: expected drop of ${pred.expectedDropPercentage}% ($${pred.dropAmount}) in next ${pred.dropTimeframeHours}h!"
+                    )
+                    if (!_saleNotifications.value.any { it.productId == prod.id && it.newPrice == newPrice }) {
+                        _saleNotifications.value = listOf(notifItem) + _saleNotifications.value
                     }
                 }
+
+                triggerSuccess("تمت إضافة المنتج إلى قائمة الرغبات الذكية وتفعيل رادار الأسعار 🔔")
             }
             updateSavedProducts(user.id)
         }
@@ -2142,7 +2430,7 @@ class MarketViewModel(
                 
             notificationManager.notify((System.currentTimeMillis() % 100000).toInt(), builder.build())
         } catch (e: Exception) {
-            Log.e("MarketViewModel", "Failed to send local push notification", e)
+            Log.e("MarketViewModel", "Failed to send local push notification: ${e.message}")
         }
     }
 
@@ -2192,6 +2480,35 @@ class MarketViewModel(
         
         viewModelScope.launch(exceptionHandler) {
             searchQueryDao.insertSearchQuery(com.example.data.SearchQueryEntity(query = query))
+
+            // Locally cache product search results in Room Database for offline functionality
+            if (query.isNotBlank() && cachedSearchResultDao != null) {
+                try {
+                    val allProds = productDao.getAllProducts().firstOrNull() ?: emptyList()
+                    val matched = allProds.filter {
+                        it.name.contains(query, ignoreCase = true) ||
+                        it.category.contains(query, ignoreCase = true) ||
+                        it.description.contains(query, ignoreCase = true)
+                    }
+                    if (matched.isNotEmpty()) {
+                        val entities = matched.map {
+                            com.example.data.CachedSearchResultEntity(
+                                query = query.trim().lowercase(),
+                                productId = it.id,
+                                productName = it.name,
+                                category = it.category,
+                                price = it.retailPrice,
+                                imageUrl = it.imageUrl
+                            )
+                        }
+                        cachedSearchResultDao.clearQueryCache(query.trim().lowercase())
+                        cachedSearchResultDao.insertSearchResults(entities)
+                        Log.d("RoomCache", "Locally cached ${entities.size} product search results in Room for '$query'")
+                    }
+                } catch (e: Exception) {
+                    Log.w("RoomCache", "Error caching search results in Room: ${e.message}")
+                }
+            }
         }
     }
 
@@ -2585,7 +2902,7 @@ class MarketViewModel(
                 
             notificationManager.notify(notificationId, builder.build())
         } catch (e: Exception) {
-            Log.e("MarketViewModel", "Failed to send native notification", e)
+            Log.e("MarketViewModel", "Failed to send native notification: ${e.message}")
         }
     }
 
@@ -2701,7 +3018,7 @@ class MarketViewModel(
                         
                     notificationManager.notify(notificationId, notif)
                 } catch (e: Exception) {
-                    Log.e("PricePredictionAlert", "Notification fail", e)
+                    Log.e("PricePredictionAlert", "Notification fail: ${e.message}")
                 }
             }
         }
@@ -2769,12 +3086,12 @@ class MarketViewModel(
                         )
                     }
                 } catch (jsonEx: Exception) {
-                    Log.e("MarketViewModel", "Failed to parse JSON, using fallback generator", jsonEx)
+                    Log.e("MarketViewModel", "Failed to parse JSON, using fallback generator: ${jsonEx.message}")
                     parsedList.addAll(getFallbackShoppingRecommendations(myPastOrders))
                 }
                 _aiShoppingRecommendations.value = parsedList
             } catch (e: Exception) {
-                Log.e("MarketViewModel", "Error in AI recommendation engine", e)
+                Log.e("MarketViewModel", "Error in AI recommendation engine: ${e.message}")
                 _aiShoppingRecommendations.value = getFallbackShoppingRecommendations(emptyList())
             } finally {
                 _isAiRecommendingShopping.value = false
@@ -2947,7 +3264,7 @@ class MarketViewModel(
                     }
                 }
             } catch (e: Exception) {
-                Log.e("MarketViewModel", "Retrofit searchProducts error", e)
+                Log.e("MarketViewModel", "Retrofit searchProducts error: ${e.message}")
             } finally {
                 _isAiLoading.value = false
             }
@@ -3007,7 +3324,7 @@ class MarketViewModel(
                         return@launch
                     }
                 } catch (retrofitEx: Exception) {
-                    Log.w("MarketViewModel", "Retrofit price comparison fallback to Gemini/Mock", retrofitEx)
+                    Log.w("MarketViewModel", "Retrofit price comparison fallback to Gemini/Mock: ${retrofitEx.message}")
                 }
 
                 val prompt = """
@@ -3049,7 +3366,7 @@ class MarketViewModel(
                         )
                     }
                 } catch (jsonEx: Exception) {
-                    Log.e("MarketViewModel", "Failed to parse comparison JSON, using high-fidelity fallback", jsonEx)
+                    Log.e("MarketViewModel", "Failed to parse comparison JSON, using high-fidelity fallback: ${jsonEx.message}")
                     compList.addAll(getFallbackPriceComparisons(productName))
                 }
                 _detailedPriceComparisons.value = _detailedPriceComparisons.value + (productId to compList)
@@ -3071,7 +3388,7 @@ class MarketViewModel(
 
                 savePriceComparisonToFirestore(productName, compList)
             } catch (e: Exception) {
-                Log.e("MarketViewModel", "Price comparison error", e)
+                Log.e("MarketViewModel", "Price comparison error: ${e.message}")
                 val fallbackList = getFallbackPriceComparisons(productName)
                 _detailedPriceComparisons.value = _detailedPriceComparisons.value + (productId to fallbackList)
                 savePriceComparisonToFirestore(productName, fallbackList)
@@ -3162,7 +3479,7 @@ class MarketViewModel(
                 )
                 _highThinkingComparisonResult.value = result
             } catch (e: Exception) {
-                Log.e(TAG, "High thinking comparison failed", e)
+                Log.e(TAG, "High thinking comparison failed: ${e.message}")
                 val cheapest = products.minByOrNull { it.retailPrice } ?: products.first()
                 val highestStock = products.maxByOrNull { it.stockQuantity } ?: products.first()
                 _highThinkingComparisonResult.value = "🧠 **تحليل مقارنة الذكاء الاصطناعي الفائق (Gemini 3.1 Pro):**\n\n" +
@@ -3198,14 +3515,11 @@ class MarketViewModel(
 
         // Firebase Messaging Topic Subscription
         try {
+            com.example.data.visionx.PriceRadarMessagingService.subscribeToProductPriceAlerts(product.id)
             com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("price_drop_${product.id}")
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        Log.d("FCM", "Subscribed to price_drop_${product.id} topic successfully")
-                    }
-                }
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic(com.example.data.visionx.PriceRadarMessagingService.GLOBAL_PRICE_RADAR_TOPIC)
         } catch (e: Exception) {
-            Log.w("FCM", "FCM topic subscription notice", e)
+            Log.w("FCM", "FCM topic subscription notice: ${e.message}")
         }
 
         // Save target price alert to Firestore
@@ -3225,7 +3539,7 @@ class MarketViewModel(
                     )
                     firestoreDb.collection("target_price_alerts").document("${user.id}_${product.id}").set(payload)
                 } catch (e: Exception) {
-                    Log.e("Firebase", "Failed to save target price alert to Firestore", e)
+                    Log.e("Firebase", "Failed to save target price alert to Firestore: ${e.message}")
                 }
             }
         }
@@ -3233,13 +3547,176 @@ class MarketViewModel(
         triggerSuccess("تم تفعيل تنبيه السعر المستهدف لـ ${product.name} عند وصوله إلى ${String.format("%.2f", targetPrice)} 🔔")
     }
 
-    fun simulatePriceDropTrigger(productId: Int, newDroppedPrice: Double) {
+    fun simulatePriceDropTrigger(productId: Int, newDroppedPrice: Double, context: android.content.Context? = null) {
         val alert = _targetPriceAlerts.value.find { it.productId == productId }
+        val productName = alert?.productName ?: "منتج في رادار الأسعار"
+        val targetPrice = alert?.targetPrice ?: newDroppedPrice
+        val currentPrice = alert?.currentPrice ?: (newDroppedPrice * 1.2)
+
         if (alert != null) {
             _recentPriceDropNotification.value = "🔥 انخفاض السعر المستهدف! وصل سعر '${alert.productName}' إلى ${String.format("%.2f", newDroppedPrice)} (أقل من هدفك ${String.format("%.2f", alert.targetPrice)})!"
             savePriceDropAlertToFirestore(alert.productName, alert.currentPrice, newDroppedPrice, isFromWishlist = true)
         } else {
             _recentPriceDropNotification.value = "🔥 تنبيه انخفاض السعر: انخفض سعر المنتج إلى ${String.format("%.2f", newDroppedPrice)}!"
+        }
+
+        // Fire automated system push notification via PriceRadarMessagingService
+        context?.let { ctx ->
+            try {
+                com.example.data.visionx.PriceRadarMessagingService.dispatchTargetPriceReachedPushNotification(
+                    context = ctx,
+                    productId = productId,
+                    productName = productName,
+                    currentPrice = newDroppedPrice,
+                    targetPrice = targetPrice
+                )
+            } catch (e: Exception) {
+                Log.w("PriceRadarFCM", "Could not show local push notification: ${e.message}")
+            }
+        }
+    }
+
+    fun removeTargetPriceAlert(productId: Int) {
+        val user = _currentUser.value
+        _targetPriceAlerts.value = _targetPriceAlerts.value.filter { it.productId != productId }
+        try {
+            com.example.data.visionx.PriceRadarMessagingService.unsubscribeFromProductPriceAlerts(productId)
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("price_drop_$productId")
+        } catch (e: Exception) {
+            Log.w("FCM", "FCM unsubscribe error: ${e.message}")
+        }
+        viewModelScope.launch {
+            if (isFirebaseOnlineAvailable() && user != null) {
+                try {
+                    val firestoreDb = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    firestoreDb.collection("target_price_alerts").document("${user.id}_$productId").delete()
+                } catch (e: Exception) {
+                    Log.e("Firebase", "Failed to delete target price alert from Firestore: ${e.message}")
+                }
+            }
+        }
+        triggerSuccess("تم إيقاف تنبيه السعر وحذفه من قائمة المراقبة")
+    }
+
+    fun checkAllWatchedTargetPrices(context: android.content.Context) {
+        viewModelScope.launch {
+            val alerts = _targetPriceAlerts.value
+            val allProds = products.value
+            alerts.forEach { alert ->
+                val prod = allProds.find { it.id == alert.productId }
+                if (prod != null && prod.retailPrice <= alert.targetPrice) {
+                    simulatePriceDropTrigger(alert.productId, prod.retailPrice, context)
+                }
+            }
+        }
+    }
+
+    // --- REAL-TIME FIRESTORE PRICE MONITORING & AUTOMATED PUSH NOTIFICATIONS ---
+    private var firestorePriceMonitorRegistration: com.google.firebase.firestore.ListenerRegistration? = null
+    private val _isRealtimePriceMonitoringActive = MutableStateFlow(false)
+    val isRealtimePriceMonitoringActive = _isRealtimePriceMonitoringActive.asStateFlow()
+
+    fun startRealtimePriceMonitoring(context: android.content.Context) {
+        if (!isFirebaseOnlineAvailable()) {
+            Log.i("Firebase", "Firebase uninitialized; running local price monitoring.")
+            _isRealtimePriceMonitoringActive.value = true
+            return
+        }
+
+        try {
+            firestorePriceMonitorRegistration?.remove()
+            val firestoreDb = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+
+            // Attach Firestore real-time snapshot listener on products collection
+            firestorePriceMonitorRegistration = firestoreDb.collection("products")
+                .addSnapshotListener { snapshots, error ->
+                    if (error != null) {
+                        Log.w("FirestorePriceMonitor", "Listen error: ${error.message}")
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshots != null && !snapshots.isEmpty) {
+                        val currentAlerts = _targetPriceAlerts.value
+                        val currentProducts: List<com.example.data.ProductEntity> = products.value
+
+                        for (change in snapshots.documentChanges) {
+                            if (change.type == com.google.firebase.firestore.DocumentChange.Type.MODIFIED ||
+                                change.type == com.google.firebase.firestore.DocumentChange.Type.ADDED) {
+                                val doc = change.document
+                                val prodId = doc.getLong("id")?.toInt() ?: doc.id.toIntOrNull() ?: continue
+                                val newPrice = doc.getDouble("retailPrice") ?: doc.getDouble("price") ?: continue
+                                val prodName = doc.getString("name") ?: "منتج مراقب"
+
+                                // Check if user has an active alert or is tracking this item
+                                val matchedAlert = currentAlerts.find { it.productId == prodId }
+                                val previousProduct = currentProducts.find { it.id == prodId }
+                                val oldPrice = matchedAlert?.currentPrice ?: previousProduct?.retailPrice ?: (newPrice * 1.15)
+
+                                if (newPrice < oldPrice || (matchedAlert != null && newPrice <= matchedAlert.targetPrice)) {
+                                    Log.d("FirestorePriceMonitor", "Real-time price drop detected on Firestore for $prodName: $oldPrice -> $newPrice")
+
+                                    // Send push notification via PriceRadarMessagingService
+                                    com.example.data.visionx.PriceRadarMessagingService.dispatchTargetPriceReachedPushNotification(
+                                        context = context,
+                                        productId = prodId,
+                                        productName = prodName,
+                                        currentPrice = newPrice,
+                                        targetPrice = matchedAlert?.targetPrice ?: newPrice
+                                    )
+
+                                    _recentPriceDropNotification.value = "🔥 تنبيه سحابي لحظي (Firestore): انخفض سعر '$prodName' إلى ${String.format("%.2f", newPrice)}!"
+
+                                    // Save drop alert record in Firestore
+                                    savePriceDropAlertToFirestore(prodName, oldPrice, newPrice, isFromWishlist = matchedAlert != null)
+
+                                    // Update local product entity in room database
+                                    if (previousProduct != null) {
+                                        viewModelScope.launch {
+                                            productDao.insertProduct(previousProduct.copy(retailPrice = newPrice))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            _isRealtimePriceMonitoringActive.value = true
+            Log.d("FirestorePriceMonitor", "Real-time Firestore price monitoring attached successfully.")
+        } catch (e: Exception) {
+            Log.w("FirestorePriceMonitor", "Failed to start Firestore price monitoring: ${e.message}")
+        }
+    }
+
+    fun stopRealtimePriceMonitoring() {
+        firestorePriceMonitorRegistration?.remove()
+        firestorePriceMonitorRegistration = null
+        _isRealtimePriceMonitoringActive.value = false
+    }
+
+    fun updateProductPriceInFirestore(
+        context: android.content.Context,
+        productId: Int,
+        newPrice: Double
+    ) {
+        viewModelScope.launch {
+            if (isFirebaseOnlineAvailable()) {
+                try {
+                    val firestoreDb = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    val prod = products.value.find { it.id == productId }
+                    val payload = hashMapOf<String, Any>(
+                        "id" to productId,
+                        "name" to (prod?.name ?: "Tracked Product #$productId"),
+                        "retailPrice" to newPrice,
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    firestoreDb.collection("products").document(productId.toString()).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                    Log.d("FirestorePriceMonitor", "Price updated in Firestore for $productId to $newPrice")
+                } catch (e: Exception) {
+                    Log.e("FirestorePriceMonitor", "Error updating price in Firestore: ${e.message}")
+                }
+            } else {
+                simulatePriceDropTrigger(productId, newPrice, context)
+            }
         }
     }
 
@@ -3335,7 +3812,7 @@ class MarketViewModel(
                     }
                 }
             } catch (e: Exception) {
-                Log.e("ReceiptScan", "Error scanning receipt", e)
+                Log.e("ReceiptScan", "Error scanning receipt: ${e.message}")
             } finally {
                 _isScanningReceipt.value = false
             }
@@ -3407,13 +3884,51 @@ class MarketViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SpendingComparison(48.50, 35.00, 38.6, true, emptyList()))
 
-    // --- FEATURE 3: VOICE-TO-TEXT SEARCH & QUICK ADD ---
+    // --- FEATURE 3: VOICE-TO-TEXT SEARCH, NAVIGATION & QUICK ADD ---
     private val _voiceSearchQuery = MutableStateFlow("")
     val voiceSearchQuery = _voiceSearchQuery.asStateFlow()
+
+    private val _voiceNavigationTarget = MutableStateFlow<String?>(null)
+    val voiceNavigationTarget = _voiceNavigationTarget.asStateFlow()
+
+    fun consumeVoiceNavigationTarget(): String? {
+        val target = _voiceNavigationTarget.value
+        _voiceNavigationTarget.value = null
+        return target
+    }
 
     fun updateVoiceSearchQuery(query: String) {
         _voiceSearchQuery.value = query
         addToSearchHistory("Product Lookup", query, "Parsed from Voice Command")
+
+        // Locally cache product search results in Room Database for offline functionality
+        viewModelScope.launch {
+            try {
+                val allProds = productDao.getAllProducts().firstOrNull() ?: emptyList()
+                val matched = allProds.filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                    it.category.contains(query, ignoreCase = true) ||
+                    it.description.contains(query, ignoreCase = true)
+                }
+                if (matched.isNotEmpty() && cachedSearchResultDao != null) {
+                    val entities = matched.map {
+                        com.example.data.CachedSearchResultEntity(
+                            query = query,
+                            productId = it.id,
+                            productName = it.name,
+                            category = it.category,
+                            price = it.retailPrice,
+                            imageUrl = it.imageUrl
+                        )
+                    }
+                    cachedSearchResultDao.clearQueryCache(query)
+                    cachedSearchResultDao.insertSearchResults(entities)
+                    Log.d("VoiceSearch", "Cached ${entities.size} voice search results in Room DB for '$query'")
+                }
+            } catch (e: Exception) {
+                Log.w("VoiceSearch", "Error caching voice search results in Room: ${e.message}")
+            }
+        }
     }
 
     fun clearVoiceSearchQuery() {
@@ -3426,7 +3941,7 @@ class MarketViewModel(
     private val _voiceCommandResultText = MutableStateFlow("")
     val voiceCommandResultText = _voiceCommandResultText.asStateFlow()
 
-    private val _voiceParsedAction = MutableStateFlow<String?>(null) // "ADDED_TO_CART", "SEARCHED", "ERROR"
+    private val _voiceParsedAction = MutableStateFlow<String?>(null) // "ADDED_TO_CART", "NAVIGATED", "SEARCHED", "ERROR"
     val voiceParsedAction = _voiceParsedAction.asStateFlow()
 
     fun startVoiceListening() {
@@ -3441,42 +3956,93 @@ class MarketViewModel(
         processVoiceNaturalLanguage(spokenText)
     }
 
-    private fun processVoiceNaturalLanguage(command: String) {
+    fun processVoiceNaturalLanguage(command: String) {
         viewModelScope.launch {
-            _voiceCommandResultText.value = "Processing Command with Gemini..."
+            _voiceCommandResultText.value = "Processing Voice Command..."
+            val commandLower = command.lowercase().trim()
+
+            // 1. Check for Direct Navigation Commands
+            when {
+                commandLower.contains("سلة") || commandLower.contains("السلة") || commandLower.contains("cart") || commandLower.contains("basket") -> {
+                    _voiceNavigationTarget.value = "CART"
+                    _voiceCommandResultText.value = "🧭 جاري الانتقال إلى سلة التسوق (Navigating to Cart)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+                commandLower.contains("مفضلة") || commandLower.contains("المفضلة") || commandLower.contains("رغبات") || commandLower.contains("wishlist") || commandLower.contains("smart wishlist") -> {
+                    _voiceNavigationTarget.value = "WISHLIST"
+                    _voiceCommandResultText.value = "⭐ جاري الانتقال إلى قائمة الرغبات الذكية (Navigating to Smart Wishlist)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+                commandLower.contains("رادار") || commandLower.contains("الرادار") || commandLower.contains("radar") || commandLower.contains("تنبيهات الأسعار") -> {
+                    _voiceNavigationTarget.value = "PRICE_RADAR"
+                    _voiceCommandResultText.value = "📡 جاري الانتقال إلى رادار الأسعار (Navigating to Price Radar)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+                commandLower.contains("استوديو") || commandLower.contains("الاستوديو") || commandLower.contains("creative studio") || commandLower.contains("lifestyle") -> {
+                    _voiceNavigationTarget.value = "CREATIVE_STUDIO"
+                    _voiceCommandResultText.value = "🎨 جاري فتح استوديو الإبداع بالذكاء الاصطناعي (Opening AI Creative Studio)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+                commandLower.contains("عدسة") || commandLower.contains("العدسة") || commandLower.contains("shopping lens") || commandLower.contains("lens") -> {
+                    _voiceNavigationTarget.value = "SHOPPING_LENS"
+                    _voiceCommandResultText.value = "🔍 جاري تشغيل عدسة التسوق البصرية (Launching Vision X Shopping Lens)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+                commandLower.contains("تحسين السلة") || commandLower.contains("وفر لي") || commandLower.contains("basket optimizer") || commandLower.contains("optimizer") -> {
+                    _voiceNavigationTarget.value = "BASKET_OPTIMIZER"
+                    _voiceCommandResultText.value = "💡 جاري فتح محرك تحسين السلة الذكي (Opening AI Basket Optimizer)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+                commandLower.contains("طلبات") || commandLower.contains("طلباتي") || commandLower.contains("orders") -> {
+                    _voiceNavigationTarget.value = "ORDERS"
+                    _voiceCommandResultText.value = "📦 جاري الانتقال إلى سجل الطلبات (Navigating to Orders)"
+                    _voiceParsedAction.value = "NAVIGATED"
+                    return@launch
+                }
+            }
+
+            // 2. Natural Language Parsing with Gemini for Add-to-Cart or Product Search
             try {
                 val systemInstruction = """
-                    You are an intelligent natural language voice parser for our organic grocery shop.
-                    Analyze what the customer said: "$command".
-                    Determine their action: either 'ADD_TO_CART' or 'SEARCH'.
-                    Identify the key product mentioned.
+                    You are an intelligent natural language voice command parser for our AI e-commerce marketplace.
+                    Analyze what the user said: "$command".
+                    Determine action: either 'ADD_TO_CART', 'NAVIGATE', or 'SEARCH'.
+                    Identify the product mentioned or search keywords.
                     Match with available items: "Organic Mountain Honey", "Supreme Turkish Coffee Blend", "Fresh Organic Milk - Farm Direct", "Organic Premium Farm Eggs Carton", "Supercharged Cognitive Energy Drink", "Rich Cocoa Almond Granola Bar".
                     Respond in strict JSON format:
                     {
-                      "action": "ADD_TO_CART" or "SEARCH",
-                      "query": "exact matched product name or general keyword",
-                      "quantity": integer
+                      "action": "ADD_TO_CART" | "NAVIGATE" | "SEARCH",
+                      "query": "extracted keyword or product",
+                      "quantity": integer,
+                      "target": "CART" | "WISHLIST" | "PRICE_RADAR" | "CREATIVE_STUDIO" | "SHOPPING_LENS" | null
                     }
                 """.trimIndent()
-                
+
                 val response = ModelService.generateAiWithModel(
                     prompt = command,
                     model = "gemini-3.5-flash",
                     systemInstruction = systemInstruction
                 )
-                
+
                 var action = "SEARCH"
                 var query = command
                 var quantity = 1
-                
+                var target: String? = null
+
                 try {
                     val cleanResponse = response.replace("```json", "").replace("```", "").trim()
                     val json = org.json.JSONObject(cleanResponse)
                     action = json.optString("action", "SEARCH")
                     query = json.optString("query", command)
                     quantity = json.optInt("quantity", 1)
+                    target = json.optString("target", null)
                 } catch (e: Exception) {
-                    val commandLower = command.lowercase()
                     if (commandLower.contains("add") || commandLower.contains("buy") || commandLower.contains("أريد شراء") || commandLower.contains("أضف")) {
                         action = "ADD_TO_CART"
                     }
@@ -3490,13 +4056,17 @@ class MarketViewModel(
                         else -> command
                     }
                 }
-                
-                if (action == "ADD_TO_CART") {
+
+                if (action == "NAVIGATE" && !target.isNullOrEmpty()) {
+                    _voiceNavigationTarget.value = target
+                    _voiceCommandResultText.value = "🧭 Navigating to $target..."
+                    _voiceParsedAction.value = "NAVIGATED"
+                } else if (action == "ADD_TO_CART") {
                     val allProd = productDao.getAllProducts().first()
                     val matchingProduct = allProd.find { it.name.lowercase().contains(query.lowercase()) || query.lowercase().contains(it.name.lowercase()) }
                     if (matchingProduct != null) {
                         addProductToCart(matchingProduct, quantity, "Retail")
-                        _voiceCommandResultText.value = "Added $quantity x ${matchingProduct.name} to your Cart!"
+                        _voiceCommandResultText.value = "Added $quantity x ${matchingProduct.name} to your Cart! ✅"
                         _voiceParsedAction.value = "ADDED_TO_CART"
                     } else {
                         updateVoiceSearchQuery(query)
@@ -3509,8 +4079,8 @@ class MarketViewModel(
                     _voiceParsedAction.value = "SEARCHED"
                 }
             } catch (e: Exception) {
-                Log.e("VoiceNLP", "Error parsing voice command", e)
-                _voiceCommandResultText.value = "Sorry, couldn't process command. Searching for '$command' instead."
+                Log.e("VoiceNLP", "Error parsing voice command: ${e.message}")
+                _voiceCommandResultText.value = "Searching for: '$command'"
                 updateVoiceSearchQuery(command)
                 _voiceParsedAction.value = "SEARCHED"
             }
@@ -3608,7 +4178,7 @@ class MarketViewModel(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "executeUnifiedAiAgentRequest error", e)
+                Log.e(TAG, "executeUnifiedAiAgentRequest error: ${e.message}")
             } finally {
                 _isAiLoading.value = false
             }
@@ -3761,6 +4331,25 @@ data class TargetPriceAlertItem(
     val currentPrice: Double = 0.0,
     val targetPrice: Double = 0.0,
     val timestamp: Long = System.currentTimeMillis()
+)
+
+data class CouponItem(
+    val code: String,
+    val title: String,
+    val discountPercent: Double,
+    val discountAmount: Double,
+    val expiryDate: String,
+    val minSpend: Double,
+    var isUsed: Boolean = false
+)
+
+data class ProductReview(
+    val productId: Int,
+    val author: String,
+    val rating: Int,
+    val comment: String,
+    val timestamp: String,
+    val verified: Boolean = true
 )
 
 

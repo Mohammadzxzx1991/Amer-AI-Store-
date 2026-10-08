@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.AiAgentActionRecord
 import com.example.data.AiToolType
 import com.example.ui.theme.*
+import com.example.ui.agent.AuraRobot
+import com.example.ui.agent.RobotExpression
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,20 +80,15 @@ fun AiMasterAgentDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(PrimaryCyan, SecondaryMint))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "AI Master Agent",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                        AuraRobot(
+                            size = 52.dp,
+                            expression = if (isBusy) RobotExpression.SCANNING else RobotExpression.TALKING,
+                            isScanning = isBusy,
+                            isTalking = isBusy,
+                            auraColor = Color(0xFF00E676),
+                            secondaryAuraColor = Color(0xFF00B0FF),
+                            torsoVisible = false
+                        )
                         Column {
                             Text(
                                 text = if (isAr) "وكيل الذكاء الاصطناعي الشامل" else "AI Master Orchestrator Agent",

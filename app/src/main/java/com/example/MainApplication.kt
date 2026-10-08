@@ -3,7 +3,6 @@ package com.example
 import android.app.Application
 import android.util.Log
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 
 class MainApplication : Application() {
 
@@ -13,33 +12,38 @@ class MainApplication : Application() {
     }
 
     companion object {
-        fun ensureFirebaseInitialized(context: android.content.Context) {
-            try {
+        private const val TAG = "MainApplication"
+        var isFirebaseConfigured: Boolean = false
+            private set
+
+        fun ensureFirebaseInitialized(context: android.content.Context): Boolean {
+            return try {
                 if (FirebaseApp.getApps(context).isEmpty()) {
                     val app = FirebaseApp.initializeApp(context)
-                    if (app == null) {
-                        val options = FirebaseOptions.Builder()
-                            .setApplicationId("1:123456789012:android:abcdef123456")
-                            .setProjectId("ameraistore-1c81d")
-                            .setApiKey("AIzaSyDummyKeyForSandboxTesting1234")
-                            .build()
-                        FirebaseApp.initializeApp(context, options)
-                    }
+                    isFirebaseConfigured = app != null && isAppProperlyConfigured(app)
+                } else {
+                    val app = FirebaseApp.getInstance()
+                    isFirebaseConfigured = isAppProperlyConfigured(app)
                 }
+                if (!isFirebaseConfigured) {
+                    Log.i(TAG, "Firebase configuration required: online Firebase services remain disabled safely.")
+                }
+                isFirebaseConfigured
             } catch (e: Exception) {
-                try {
-                    if (FirebaseApp.getApps(context).isEmpty()) {
-                        val options = FirebaseOptions.Builder()
-                            .setApplicationId("1:123456789012:android:abcdef123456")
-                            .setProjectId("ameraistore-1c81d")
-                            .setApiKey("AIzaSyDummyKeyForSandboxTesting1234")
-                            .build()
-                        FirebaseApp.initializeApp(context, options)
-                    }
-                } catch (e2: Exception) {
-                    Log.e("MainApplication", "Firebase initialization fallback error: ${e2.message}")
-                }
+                isFirebaseConfigured = false
+                Log.i(TAG, "Firebase configuration absent or uninitialized: online services disabled safely.")
+                false
             }
+        }
+
+        fun isAppProperlyConfigured(app: FirebaseApp): Boolean {
+            val apiKey = app.options.apiKey
+            val appId = app.options.applicationId
+            return apiKey.isNotBlank() &&
+                    !apiKey.contains("DummyKey") &&
+                    apiKey != "MY_GEMINI_API_KEY" &&
+                    appId.isNotBlank() &&
+                    !appId.contains("123456789012")
         }
     }
 }

@@ -4,7 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import com.example.ui.agent.SpaceTurquoiseInteractiveRobot
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,34 +47,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            var app = FirebaseApp.initializeApp(this)
-            if (app == null) {
-                val options = com.google.firebase.FirebaseOptions.Builder()
-                    .setApplicationId("1:123456789012:android:abcdef123456")
-                    .setProjectId("dummy-project")
-                    .setApiKey("AIzaSyDummyKeyForSandboxTesting1234")
-                    .build()
-                FirebaseApp.initializeApp(this, options)
-            }
+        val isFirebaseConfigured = MainApplication.ensureFirebaseInitialized(this)
+        if (isFirebaseConfigured) {
             initializeAppFeatures()
-        } catch (e: Exception) {
-            try {
-                val options = com.google.firebase.FirebaseOptions.Builder()
-                    .setApplicationId("1:123456789012:android:abcdef123456")
-                    .setProjectId("dummy-project")
-                    .setApiKey("AIzaSyDummyKeyForSandboxTesting1234")
-                    .build()
-                FirebaseApp.initializeApp(this, options)
-                initializeAppFeatures()
-            } catch (e2: Exception) {
-                android.util.Log.e("MainActivity", "Firebase initialization deferred or sandboxed: ${e2.message}")
-            }
+        } else {
+            android.util.Log.i("MainActivity", "Firebase configuration absent or uninitialized; running with online features disabled.")
         }
         enableEdgeToEdge()
         requestCameraPermissionForVisualSearch()
         setContent {
-            val db = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "aicommerce.db").fallbackToDestructiveMigration().build()
+            val db = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "aicommerce.db")
+                .addMigrations(*AppDatabase.ALL_MIGRATIONS)
+                .build()
+            com.example.data.visionx.PriceRadarService.initDao(db.priceHistoryDao(), applicationContext)
             val viewModelFactory = MarketViewModelFactory(
                 db.userDao(),
                 db.productDao(),
@@ -86,25 +73,41 @@ class MainActivity : ComponentActivity() {
                 db.storedOrganicItemDao(),
                 getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE),
                 db.cachedSearchResultDao(),
-                db.cachedPriceComparisonDao()
+                db.cachedPriceComparisonDao(),
+                db.viralProductMentionDao(),
+                db.userInteractionHistoryDao(),
+                db.recentlyViewedProductDao()
             )
 
             val viewModel: MarketViewModel = viewModel(factory = viewModelFactory)
             val isDark by viewModel.appDarkMode.collectAsState()
             val themeStyle by viewModel.appThemeStyle.collectAsState()
             
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                viewModel.startRealtimePriceMonitoring(applicationContext)
+            }
+            
             MyApplicationTheme(darkTheme = isDark, themeStyle = themeStyle) {
                 val currentUser by viewModel.currentUser.collectAsState()
+                val lang by viewModel.appLanguage.collectAsState()
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    // Since AuthScreen and MainLayout fully handle internal paddings and window insets,
-                    // we do not need to apply innerPadding explicitly here to prevent double padding issues,
-                    // but we can pass it if necessary.
-                    if (currentUser == null) {
-                        AuthScreen(viewModel = viewModel)
-                    } else {
-                        MainLayout(viewModel = viewModel)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        // Since AuthScreen and MainLayout fully handle internal paddings and window insets,
+                        // we do not need to apply innerPadding explicitly here to prevent double padding issues,
+                        // but we can pass it if necessary.
+                        if (currentUser == null) {
+                            AuthScreen(viewModel = viewModel)
+                        } else {
+                            MainLayout(viewModel = viewModel)
+                        }
                     }
+
+                    // Space Turquoise Interactive Floating Robot Companion floating over every mm of screen
+                    /* SpaceTurquoiseInteractiveRobot(
+                        modifier = Modifier.fillMaxSize(),
+                        isAr = lang == "ar"
+                    ) */
                 }
             }
         }
@@ -112,10 +115,8 @@ class MainActivity : ComponentActivity() {
 
     private fun initializeAppFeatures() {
         try {
-            val app = com.google.firebase.FirebaseApp.getInstance()
-            val apiKey = app.options.apiKey
-            if (apiKey.isEmpty() || apiKey.contains("DummyKey") || apiKey == "MY_GEMINI_API_KEY") {
-                android.util.Log.i("MainActivity", "Firebase running in local sandboxed mode; skipping online remote config and FCM token requests.")
+            if (!MainApplication.isFirebaseConfigured) {
+                android.util.Log.i("MainActivity", "Firebase configuration absent; skipping online remote config and FCM token requests.")
                 return
             }
 
@@ -126,16 +127,15 @@ class MainActivity : ComponentActivity() {
             remoteConfig.setConfigSettingsAsync(configSettings)
 
             // Initialize Firestore
-            val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-            android.util.Log.d("Firebase", "Firestore initialized: \$firestore")
+            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            android.util.Log.d("Firebase", "Firestore service ready.")
 
             // Initialize FCM
             com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    val token = task.result
-                    android.util.Log.d("FCM", "FCM Token: \$token")
+                    android.util.Log.d("FCM", "FCM token registration completed successfully.")
                 } else {
-                    android.util.Log.e("FCM", "Fetching FCM registration token failed", task.exception)
+                    android.util.Log.w("FCM", "Fetching FCM registration token failed: ${task.exception?.message ?: "unknown"}")
                 }
             }
 

@@ -1,8 +1,6 @@
 {
-  "name": "Remix Remix Remix: Remix: Aura AI Marketplace new",
-  "description": "A smart AI marketplace featuring visual search, price comparison, and automated product discovery across social media and the web.",
+  "name": "أسواق جوافة",
+  "description": "أسواق جوافة - Guava Mall: متجر إلكتروني فضائي ذكي يضم كافة منتجات السوبرماركت والطازجة مع مساعد ذكي وخدمات الشحن السريع.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

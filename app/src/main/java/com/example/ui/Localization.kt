@@ -7,7 +7,7 @@ import androidx.compose.runtime.getValue
 object Localization {
     private val translations = mapOf(
         "en" to mapOf(
-            "app_title" to "AmEr AI store",
+            "app_title" to "Guava Mall",
             "app_subtitle" to "Fresh & Organic Smart Grocery Design",
             "app_description" to "Organic Fresh Grocery & Smart AI Shopping Platform",
             "sign_up_tab" to "إنشاء حساب (Sign Up)",
@@ -115,7 +115,7 @@ object Localization {
             "change_lang" to "Language (اللغة)"
         ),
         "ar" to mapOf(
-            "app_title" to "AmEr AI store",
+            "app_title" to "أسواق جوافة",
             "app_subtitle" to "متجر المواد الغذائية الطازجة والعضوية الممتازة",
             "app_description" to "تسوق خضروات وفواكه طازجة بأفضل الأسعار بالذكاء الاصطناعي",
             "sign_up_tab" to "إنشاء حساب (Sign Up)",

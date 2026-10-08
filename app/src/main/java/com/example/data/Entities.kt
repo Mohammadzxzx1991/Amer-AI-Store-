@@ -44,6 +44,16 @@ data class SavedProductEntity(
     val savedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "price_alerts")
+data class PriceAlertEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: Int,
+    val productId: Int,
+    val productName: String,
+    val targetPrice: Double,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "orders")
 data class OrderEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -145,5 +155,68 @@ data class CachedPriceComparisonEntity(
     val isBestDeal: Boolean = false,
     val cachedAt: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "price_histories")
+data class PriceHistoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val productId: Int,
+    val productName: String,
+    val merchantName: String,
+    val retailPrice: Double,
+    val wholesalePrice: Double? = null,
+    val source: String = "Marketplace API",
+    val isBestDeal: Boolean = false,
+    val isRegisteredMerchant: Boolean = true,
+    val recordedAt: Long = System.currentTimeMillis(),
+    val evidenceId: String = ""
+)
+
+@Entity(tableName = "viral_product_mentions")
+data class ViralProductMentionEntity(
+    @PrimaryKey val id: String,
+    val productId: Int,
+    val productNameAr: String,
+    val productNameEn: String,
+    val category: String,
+    val retailPrice: Double,
+    val originalPrice: Double,
+    val imageUrl: String,
+    val platform: String,
+    val creatorHandle: String,
+    val creatorName: String,
+    val postCaption: String,
+    val hashtags: String,
+    val videoUrl: String,
+    val postUrl: String,
+    val viewCount: Long,
+    val likeCount: Long,
+    val shareCount: Long,
+    val viralVelocity: Double,
+    val sentimentScore: Double,
+    val viralReasonAr: String,
+    val discoveredAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "user_interaction_histories")
+data class UserInteractionHistoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: Int = 1,
+    val productId: Int,
+    val productName: String,
+    val category: String,
+    val interactionType: String, // "VIEW", "CLICK", "ADD_TO_CART", "PURCHASE", "WISHLIST"
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "recently_viewed_products")
+data class RecentlyViewedProductEntity(
+    @PrimaryKey val productId: Int,
+    val productName: String,
+    val category: String,
+    val retailPrice: Double,
+    val imageUrl: String,
+    val viewedAt: Long = System.currentTimeMillis()
+)
+
 
 

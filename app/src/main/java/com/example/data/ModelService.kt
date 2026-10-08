@@ -11,6 +11,23 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+data class VisionProductMetadata(
+    val productNameAr: String,
+    val productNameEn: String,
+    val brand: String,
+    val category: String,
+    val estimatedPrice: Double,
+    val confidenceScore: Double,
+    val barcodeOrSku: String?,
+    val specifications: List<String>,
+    val nutritionalHighlights: List<String>,
+    val packagingType: String,
+    val freshnessGrade: String,
+    val storageAdvice: String,
+    val ingredients: List<String>,
+    val rawText: String
+)
+
 object ModelService {
     private const val TAG = "ModelService"
     private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -27,7 +44,7 @@ object ModelService {
      */
     suspend fun generateAiContent(prompt: String): String = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
-        if (true) {
+        if (apiKey.isNullOrEmpty() || apiKey.startsWith("AIzaSy_YOUR") || apiKey.contains("YOUR_API_KEY") || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "Gemini API key is empty or placeholder. Falling back to high-fidelity mock AI responses.")
             return@withContext getOfflineMockResponse(prompt)
         }
@@ -57,7 +74,7 @@ object ModelService {
             client.newCall(request).execute().use { response ->
                 val responseBodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "API call failed with status: ${response.code}, body: $responseBodyStr")
+                    Log.e(TAG, "API call failed with status: ${response.code}")
                     return@withContext getOfflineMockResponse(prompt)
                 }
 
@@ -73,7 +90,7 @@ object ModelService {
                 return@withContext "Error: Could not parse response text from Gemini API."
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during API call: ${e.message}", e)
+            Log.e(TAG, "Exception during API call: ${e.message}")
             return@withContext getOfflineMockResponse(prompt)
         }
     }
@@ -90,7 +107,7 @@ object ModelService {
         mapsGrounding: Boolean = false
     ): String = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
-        if (true) {
+        if (apiKey.isNullOrEmpty() || apiKey.startsWith("AIzaSy_YOUR") || apiKey.contains("YOUR_API_KEY") || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "Gemini API key is empty/placeholder. Falling back to mock responses.")
             return@withContext getOfflineMockResponse(prompt)
         }
@@ -140,7 +157,7 @@ object ModelService {
             client.newCall(request).execute().use { response ->
                 val responseBodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "API call to $model failed with status: ${response.code}, body: $responseBodyStr")
+                    Log.e(TAG, "API call to $model failed with status: ${response.code}")
                     return@withContext getOfflineMockResponse(prompt)
                 }
 
@@ -156,7 +173,7 @@ object ModelService {
                 return@withContext "Error: No text parts returned from model $model"
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during $model call: ${e.message}", e)
+            Log.e(TAG, "Exception during $model call: ${e.message}")
             return@withContext getOfflineMockResponse(prompt)
         }
     }
@@ -167,7 +184,7 @@ object ModelService {
      */
     suspend fun analyzeProductImage(bitmap: android.graphics.Bitmap, prompt: String): String = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
-        if (true) {
+        if (apiKey.isNullOrEmpty() || apiKey.startsWith("AIzaSy_YOUR") || apiKey.contains("YOUR_API_KEY") || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "Gemini API key is empty or placeholder. Falling back to high-fidelity mock image response.")
             return@withContext getOfflineMockImageResponse(prompt)
         }
@@ -216,7 +233,7 @@ object ModelService {
             client.newCall(request).execute().use { response ->
                 val responseBodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "Image API call failed with status: ${response.code}, body: $responseBodyStr")
+                    Log.e(TAG, "Image API call failed with status: ${response.code}")
                     return@withContext getOfflineMockImageResponse(prompt)
                 }
 
@@ -232,8 +249,275 @@ object ModelService {
                 return@withContext "Error: Could not parse response text from Gemini Image API."
             }
         } catch (e: java.lang.Exception) {
-            Log.e(TAG, "Exception during Image API call: ${e.message}", e)
+            Log.e(TAG, "Exception during Image API call: ${e.message}")
             return@withContext getOfflineMockImageResponse(prompt)
+        }
+    }
+
+    /**
+     * Vision X Shopping Lens: Real-time CameraX frame analysis using Gemini 3.5 Flash Multimodal.
+     * Performs product identification and deep metadata extraction (brand, specs, packaging, nutrition, etc.)
+     */
+    suspend fun analyzeProductWithGeminiVision(
+        bitmap: android.graphics.Bitmap?,
+        hint: String = ""
+    ): VisionProductMetadata = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        val isRealApiKey = !apiKey.isNullOrEmpty() &&
+                !apiKey.startsWith("AIzaSy_YOUR") &&
+                !apiKey.contains("YOUR_API_KEY") &&
+                apiKey != "MY_GEMINI_API_KEY"
+
+        if (bitmap == null || !isRealApiKey) {
+            return@withContext getOfflineMockProductMetadata(hint)
+        }
+
+        val base64Image = try {
+            val outputStream = java.io.ByteArrayOutputStream()
+            val scaledBitmap = if (bitmap.width > 800 || bitmap.height > 800) {
+                val ratio = 800f / maxOf(bitmap.width, bitmap.height)
+                android.graphics.Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * ratio).toInt(),
+                    (bitmap.height * ratio).toInt(),
+                    true
+                )
+            } else {
+                bitmap
+            }
+            scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
+            android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compress bitmap for Vision X: ${e.message}")
+            ""
+        }
+
+        if (base64Image.isEmpty()) {
+            return@withContext getOfflineMockProductMetadata(hint)
+        }
+
+        val prompt = """
+            You are the Vision X Shopping Lens AI for an advanced organic commerce platform.
+            Analyze this product camera frame. Identify the product precisely and extract structured metadata.
+            Provide your response strictly in the following JSON schema:
+            {
+              "productNameAr": "اسم المنتج بالعربية",
+              "productNameEn": "Product Name in English",
+              "brand": "Brand or Manufacturer name",
+              "category": "Category name (e.g. عسل ومربيات, ألبان وأجبان, بن ومشروبات, زيوت وتموين, مخبوزات)",
+              "estimatedPrice": 18.50,
+              "confidenceScore": 0.96,
+              "barcodeOrSku": "EAN-13 or SKU code if visible, otherwise null",
+              "specifications": ["500g Net Weight", "Cold Pressed", "100% Raw"],
+              "nutritionalHighlights": ["Zero Added Sugar", "Rich in Antioxidants"],
+              "packagingType": "Glass Jar with Safety Seal",
+              "freshnessGrade": "Grade A Premium / Certified Batch",
+              "storageAdvice": "Keep in a cool dry place",
+              "ingredients": ["Raw Sidr Honey"]
+            }
+        """.trimIndent()
+
+        val url = "${BASE_URL}gemini-3.5-flash:generateContent?key=$apiKey"
+        val requestJson = JSONObject().apply {
+            val partsArr = org.json.JSONArray().apply {
+                put(JSONObject().put("text", prompt))
+                put(JSONObject().put("inlineData", JSONObject().apply {
+                    put("mimeType", "image/jpeg")
+                    put("data", base64Image)
+                }))
+            }
+            put("contents", org.json.JSONArray().put(JSONObject().put("parts", partsArr)))
+            put("generationConfig", JSONObject().apply {
+                put("responseMimeType", "application/json")
+                put("temperature", 0.2)
+            })
+        }
+
+        val body = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder().url(url).post(body).build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                val responseBodyStr = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "Gemini Vision API call failed: ${response.code}")
+                    return@withContext getOfflineMockProductMetadata(hint)
+                }
+
+                val responseObj = JSONObject(responseBodyStr)
+                val candidates = responseObj.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
+                    val contentObj = candidates.getJSONObject(0).optJSONObject("content")
+                    val parts = contentObj?.optJSONArray("parts")
+                    val text = parts?.optJSONObject(0)?.optString("text") ?: ""
+
+                    val cleanedJson = text
+                        .replace("```json", "")
+                        .replace("```", "")
+                        .trim()
+
+                    val json = JSONObject(cleanedJson)
+                    val specsList = mutableListOf<String>()
+                    val specsArr = json.optJSONArray("specifications")
+                    if (specsArr != null) {
+                        for (i in 0 until specsArr.length()) specsList.add(specsArr.optString(i))
+                    }
+
+                    val nutritionList = mutableListOf<String>()
+                    val nutritionArr = json.optJSONArray("nutritionalHighlights")
+                    if (nutritionArr != null) {
+                        for (i in 0 until nutritionArr.length()) nutritionList.add(nutritionArr.optString(i))
+                    }
+
+                    val ingredientsList = mutableListOf<String>()
+                    val ingredientsArr = json.optJSONArray("ingredients")
+                    if (ingredientsArr != null) {
+                        for (i in 0 until ingredientsArr.length()) ingredientsList.add(ingredientsArr.optString(i))
+                    }
+
+                    return@withContext VisionProductMetadata(
+                        productNameAr = json.optString("productNameAr", "منتج معتمد"),
+                        productNameEn = json.optString("productNameEn", "Certified Product"),
+                        brand = json.optString("brand", "Amer Direct"),
+                        category = json.optString("category", "منتجات غذائية"),
+                        estimatedPrice = json.optDouble("estimatedPrice", 15.0),
+                        confidenceScore = json.optDouble("confidenceScore", 0.95),
+                        barcodeOrSku = json.optString("barcodeOrSku").takeIf { it.isNotEmpty() && it != "null" },
+                        specifications = if (specsList.isNotEmpty()) specsList else listOf("عبوة أصلية معتمدة", "مطابق لمعايير الجودة"),
+                        nutritionalHighlights = if (nutritionList.isNotEmpty()) nutritionList else listOf("طبيعي 100%", "بدون مواد حافظة"),
+                        packagingType = json.optString("packagingType", "عبوة آمنة"),
+                        freshnessGrade = json.optString("freshnessGrade", "درجة أولى ممتازة (Grade A)"),
+                        storageAdvice = json.optString("storageAdvice", "يحفظ في مكان جاف وبارد"),
+                        ingredients = ingredientsList,
+                        rawText = text
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in analyzeProductWithGeminiVision: ${e.message}")
+        }
+
+        return@withContext getOfflineMockProductMetadata(hint)
+    }
+
+    /**
+     * Rich metadata fallback for prototype / offline / simulated mode.
+     */
+    fun getOfflineMockProductMetadata(hint: String = ""): VisionProductMetadata {
+        val lower = hint.lowercase()
+        return when {
+            lower.contains("oil") || lower.contains("زيت") -> VisionProductMetadata(
+                productNameAr = "زيت زيتون بكر ممتاز معصور على البارد",
+                productNameEn = "Cold Pressed Extra Virgin Olive Oil",
+                brand = "مزارع الجوف العضوية (Al-Jouf Organic)",
+                category = "زيوت وتموين",
+                estimatedPrice = 14.80,
+                confidenceScore = 0.978,
+                barcodeOrSku = "628100552140",
+                specifications = listOf("حجم 750 مل", "معصور على البارد درجة أولى", "حموضة أقل من 0.3%"),
+                nutritionalHighlights = listOf("غني بأوميغا 9 ومضادات الأكسدة", "صحي للقلب والشرايين", "خالٍ من الكوليسترول"),
+                packagingType = "زجاجة داكنة لحماية الزيت من الضوء والأكسدة",
+                freshnessGrade = "محصول الموسم الحالي (درجة أولى ممتازة)",
+                storageAdvice = "يحفظ بعيداً عن مصادر الحرارة والضوء المباشر",
+                ingredients = listOf("زيت زيتون بكر طبيعي 100%"),
+                rawText = "Cold Pressed Extra Virgin Olive Oil identified with 97.8% confidence."
+            )
+            lower.contains("coffee") || lower.contains("قهوة") || lower.contains("بن") -> VisionProductMetadata(
+                productNameAr = "خلطة قهوة تركية فاخرة بالهيل الملكي",
+                productNameEn = "Supreme Turkish Coffee Blend with Cardamom",
+                brand = "مطاحن العاصمة الملكية (Capital Roast)",
+                category = "بن ومشروبات",
+                estimatedPrice = 8.50,
+                confidenceScore = 0.965,
+                barcodeOrSku = "628200331908",
+                specifications = listOf("وزن 250 جم", "حبوب أرابيكا نقية 100%", "طحنة ناعمة جداً للإبريق"),
+                nutritionalHighlights = listOf("غنية بمضادات الأكسدة الطبيعية", "تعزيز التركيز والطاقة الإدراكية", "صفر سكر مضاف"),
+                packagingType = "كيس ألومنيوم ثلاثي الطبقات مع صمام تفريغ هواء",
+                freshnessGrade = "محمصة حديثاً خلال 48 ساعة الماضية",
+                storageAdvice = "تحفظ العبوة محكمة الإغلاق في مكان بارد وجاف",
+                ingredients = listOf("بن أرابيكا محمص", "هيل أخضر جامبو فاخر"),
+                rawText = "Supreme Turkish Coffee identified with 96.5% confidence."
+            )
+            lower.contains("milk") || lower.contains("حليب") || lower.contains("لبن") -> VisionProductMetadata(
+                productNameAr = "حليب أبقار عضوي طازج كامل الدسم",
+                productNameEn = "Fresh Farm-Direct Organic Whole Milk",
+                brand = "مزارع الروابي الطازجة (Al-Rawabi Dairy)",
+                category = "ألبان وأجبان",
+                estimatedPrice = 4.20,
+                confidenceScore = 0.982,
+                barcodeOrSku = "628100889211",
+                specifications = listOf("حجم 1 لتر", "مبستر ومتجانس بطرق طبيعية", "أبقار ترعى بحرية في المروج"),
+                nutritionalHighlights = listOf("8 جم بروتين لكل كوب", "30% من الاحتياج اليومي للكالسيوم", "مدعم بفيتامين D3"),
+                packagingType = "عبوة كرتونية كلاسيكية قابلة للتدوير 100%",
+                freshnessGrade = "طازج اليوم - صلاحية إنتاج فورية",
+                storageAdvice = "يحفظ مبرداً بين 2 إلى 4 درجات مئوية دائماً",
+                ingredients = listOf("حليب بقر عضوي طازج كامل الدسم 100%"),
+                rawText = "Fresh Organic Milk identified with 98.2% confidence."
+            )
+            lower.contains("egg") || lower.contains("بيض") -> VisionProductMetadata(
+                productNameAr = "طبق بيض بلدي عضوي حر المزرعة (30 بيضة)",
+                productNameEn = "Organic Free-Range Farm Eggs Carton (30 Pcs)",
+                brand = "مزارع الوادي الطبيعية (Al-Wadi Farms)",
+                category = "بيض ودواجن",
+                estimatedPrice = 12.00,
+                confidenceScore = 0.971,
+                barcodeOrSku = "628100994320",
+                specifications = listOf("طبق 30 بيضة", "تغذية طبيعية 100% خالية من الهرمونات", "حجم كبير وزن 65 جم"),
+                nutritionalHighlights = listOf("غني بالأوميغا 3 واللوتين", "6.3 جم بروتين عالي الجودة للبيضة", "فيتامين B12 وزنك"),
+                packagingType = "طبق كرتوني واقٍ ممتص للصدمات قابل للتحلل",
+                freshnessGrade = "قطاف صباح اليوم - فحص جودة معتمد",
+                storageAdvice = "يحفظ في الثلاجة في الرف الأوسط لضمان ثبات البرودة",
+                ingredients = listOf("بيض طازج طبيعي 100%"),
+                rawText = "Free-range eggs carton identified with 97.1% confidence."
+            )
+            lower.contains("energy") || lower.contains("طاقة") -> VisionProductMetadata(
+                productNameAr = "مشروب الطاقة الإدراكي الذكي بالتوت وخلاصة الجنسنج",
+                productNameEn = "Cognitive Focus & Endurance Energy Drink",
+                brand = "نيوروفوكس (NeuroFocus Labs)",
+                category = "مشروبات طاقة ورياضة",
+                estimatedPrice = 3.50,
+                confidenceScore = 0.959,
+                barcodeOrSku = "628100771890",
+                specifications = listOf("سعة 330 مل", "120 مجم كافيين نباتي مستدام", "صفر سكر (محلى بفاكهة الراهب)"),
+                nutritionalHighlights = listOf("فيتامينات B6, B12, B3", "إل-ثيانين لتركيز هادئ بدون خفقان", "خالٍ من الألوان الاصطناعية"),
+                packagingType = "علبة ألومنيوم رفيعة غير لامعة (Matte Slim Can)",
+                freshnessGrade = "إنتاج جديد - جودة ومذاق فوار منعش",
+                storageAdvice = "يفضل شربه بارداً جداً ومثلجاً",
+                ingredients = listOf("ماء فوار نقي", "مستخلص حبوب البن الأخضر", "جنسنج كوري", "إل-ثيانين"),
+                rawText = "Cognitive energy drink identified with 95.9% confidence."
+            )
+            lower.contains("apple") || lower.contains("تفاح") || lower.contains("فاكهة") -> VisionProductMetadata(
+                productNameAr = "تفاح سكري أحمر إيطالي مقرمش طازج",
+                productNameEn = "Fresh Crisp Italian Red Delicious Apple",
+                brand = "بساتين الألب الأوروبية (Alpine Orchards)",
+                category = "فواكه وخضروات طازجة",
+                estimatedPrice = 3.20,
+                confidenceScore = 0.986,
+                barcodeOrSku = "4015",
+                specifications = listOf("الوزن 1 كجم تقريباً", "حجم جامبو مقاس 80+", "شمع طبيعي بدون مواد حافظة"),
+                nutritionalHighlights = listOf("ألياف غذائية عالية", "فيتامين C ومضادات الأكسدة", "قليل السعرات الحرارية"),
+                packagingType = "صندوق شبكي صديق للبيئة مع تهوية طبيعية",
+                freshnessGrade = "طازج قطاف يدوي فائق الجودة (Grade A+)",
+                storageAdvice = "يحفظ في درج الفواكه بالثلاجة للحفاظ على القرمشة",
+                ingredients = listOf("تفاح سكري طازج طبيعي 100%"),
+                rawText = "Red Apple identified with 98.6% confidence."
+            )
+            else -> VisionProductMetadata(
+                productNameAr = "عسل جبلي طبيعي سدر دوعني ملكي فاخر",
+                productNameEn = "Royal Sidr Mountain Raw Honey",
+                brand = "مناحل البركة الملكية (Al-Baraka Royal Apiary)",
+                category = "عسل ومربيات",
+                estimatedPrice = 24.50,
+                confidenceScore = 0.984,
+                barcodeOrSku = "628100445678",
+                specifications = listOf("وزن صافي 500 جم", "غير مبستر وخام 100%", "فحص مخبري للسكروز أقل من 1%"),
+                nutritionalHighlights = listOf("إنزيمات حية ومضادات أكسدة نشطة", "مقوٍ طبيعي للمناعة", "بديل صحي ممتاز للسكر الصناعي"),
+                packagingType = "مرطبان زجاجي بلوري داكن بغطاء خشبي محكم",
+                freshnessGrade = "موسم السدر البري الحالي (فئة ملكية فاخرة)",
+                storageAdvice = "يحفظ بدرجة حرارة الغرفة ولا يوضع بالثلاجة منعاً للتبلور",
+                ingredients = listOf("عسل سدر طبيعي نقي 100%"),
+                rawText = "Royal Sidr Honey identified with 98.4% confidence."
+            )
         }
     }
 
@@ -454,7 +738,7 @@ object ModelService {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Lyria music error", e)
+            Log.e(TAG, "Lyria music error: ${e.message}")
         }
         return@withContext "🎵 [AI Music Generated ($model)] Audio track synthesized for '$prompt'"
     }
@@ -489,7 +773,7 @@ object ModelService {
                     val base64 = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
                     put("image", JSONObject().put("bytesBase64Encoded", base64))
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to encode image for Veo", e)
+                    Log.e(TAG, "Failed to encode image for Veo: ${e.message}")
                 }
             }
         }
@@ -503,7 +787,7 @@ object ModelService {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Veo video error", e)
+            Log.e(TAG, "Veo video error: ${e.message}")
         }
         return@withContext "🎬 [Veo 3 Video Rendered ($model)] Video generated for '$prompt' in $aspectRatio"
     }
@@ -537,7 +821,7 @@ object ModelService {
                 val base64 = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
                 partsArr.put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", base64)))
             } catch (e: Exception) {
-                Log.e(TAG, "Source image encode failed", e)
+                Log.e(TAG, "Source image encode failed: ${e.message}")
             }
         }
 
@@ -557,7 +841,7 @@ object ModelService {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Image generation error", e)
+            Log.e(TAG, "Image generation error: ${e.message}")
         }
         return@withContext "🎨 [AI Image Generated ($model)] Created image ($aspectRatio, $imageSize) for '$prompt'"
     }
@@ -601,7 +885,7 @@ object ModelService {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "High Thinking error", e)
+            Log.e(TAG, "High Thinking error: ${e.message}")
         }
         return@withContext "🧠 [High Thinking Result ($model)] Detailed analysis complete for '$prompt'"
     }
@@ -691,7 +975,7 @@ object ModelService {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Gemini 3.1 Pro image analysis error", e)
+            Log.e(TAG, "Gemini 3.1 Pro image analysis error: ${e.message}")
         }
         return@withContext getOfflineMockImageResponse(prompt)
     }

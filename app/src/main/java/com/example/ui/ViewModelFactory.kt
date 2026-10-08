@@ -17,7 +17,10 @@ class MarketViewModelFactory(
     private val storedOrganicItemDao: StoredOrganicItemDao,
     private val sharedPreferences: android.content.SharedPreferences,
     private val cachedSearchResultDao: CachedSearchResultDao? = null,
-    private val cachedPriceComparisonDao: CachedPriceComparisonDao? = null
+    private val cachedPriceComparisonDao: CachedPriceComparisonDao? = null,
+    private val viralProductMentionDao: ViralProductMentionDao? = null,
+    private val userInteractionHistoryDao: UserInteractionHistoryDao? = null,
+    private val recentlyViewedProductDao: RecentlyViewedProductDao? = null
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MarketViewModel::class.java)) {
@@ -35,7 +38,10 @@ class MarketViewModelFactory(
                 storedOrganicItemDao,
                 sharedPreferences,
                 cachedSearchResultDao,
-                cachedPriceComparisonDao
+                cachedPriceComparisonDao,
+                viralProductMentionDao,
+                userInteractionHistoryDao,
+                recentlyViewedProductDao
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")

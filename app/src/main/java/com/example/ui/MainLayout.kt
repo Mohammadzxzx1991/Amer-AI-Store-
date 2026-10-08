@@ -58,6 +58,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import com.example.data.*
+import com.example.data.agent.*
+import com.example.data.visionx.*
+import com.example.ui.agent.*
+import com.example.ui.visionx.*
 import com.example.ui.theme.*
 
 @Composable
@@ -523,10 +527,10 @@ fun GreenHubDashboard(lang: String, viewModel: MarketViewModel) {
     val CardDarkBg = MaterialTheme.colorScheme.surface
     val PolarLight = MaterialTheme.colorScheme.onBackground
 
-    val SoftGrayText = Color(0xFF94A3B8)
-    val PrimaryCyan = Color(0xFF06B6D4)
-    val SecondaryMint = Color(0xFF10B981)
-    val AccentCoral = Color(0xFFF43F5E)
+    val SoftGrayText = MaterialTheme.colorScheme.onSurfaceVariant
+    val PrimaryCyan = MaterialTheme.colorScheme.primary
+    val SecondaryMint = MaterialTheme.colorScheme.tertiary
+    val AccentCoral = MaterialTheme.colorScheme.secondary
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -1555,6 +1559,17 @@ fun MainLayout(viewModel: MarketViewModel) {
     var showSettingsMenu by remember { mutableStateOf(false) }
     var showExtraFeaturesDialog by remember { mutableStateOf(false) }
     var showMasterAgentDialog by remember { mutableStateOf(false) }
+    var showAgentControlCenter by remember { mutableStateOf(false) }
+    var showShoppingLensDialog by remember { mutableStateOf(false) }
+    var showPriceRadarDialog by remember { mutableStateOf(false) }
+    var showBasketOptimizerDialog by remember { mutableStateOf(false) }
+    var showShoppingMissionDialog by remember { mutableStateOf(false) }
+    var showReceiptIntelligenceDialog by remember { mutableStateOf(false) }
+    var showCreativeStudioDialog by remember { mutableStateOf(false) }
+    var showCalorieScannerDialog by remember { mutableStateOf(false) }
+    var showTikTokFeedDialog by remember { mutableStateOf(false) }
+    var showSnapchatFeedDialog by remember { mutableStateOf(false) }
+    var selectedOrderForDigitalTwin by remember { mutableStateOf<OrderEntity?>(null) }
 
     val drawerState = androidx.compose.material3.rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
@@ -1567,24 +1582,101 @@ fun MainLayout(viewModel: MarketViewModel) {
             drawerContent = {
                 androidx.compose.material3.ModalDrawerSheet(
                     drawerContainerColor = CardDarkBg,
-                    modifier = Modifier.width(280.dp)
+                    modifier = Modifier
+                        .width(285.dp)
+                        .verticalScroll(rememberScrollState())
                 ) {
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = if (lang == "ar") "القائمة الرئيسية" else "Main Menu",
+                        text = if (lang == "ar") "القائمة الرئيسية والشاشات" else "Main Menu & Screens",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = PrimaryCyan,
                         modifier = Modifier.padding(16.dp)
                     )
                     Divider(color = PrimaryCyan.copy(alpha = 0.2f))
-                    
+
+                    // Role Switcher Section (Highlighted)
+                    Text(
+                        text = if (lang == "ar") "👑 بوابات المنصة والأدوار" else "👑 Platform Roles & Portals",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WarmAmbar,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                    roles.forEach { r ->
+                        val isSelected = currentRole == r
+                        androidx.compose.material3.NavigationDrawerItem(
+                            label = {
+                                Text(
+                                    text = when (r) {
+                                        "Customer" -> "🛒 " + txt("role_customer")
+                                        "Merchant" -> "🏬 " + txt("role_merchant")
+                                        "Delivery" -> "🚚 " + txt("role_delivery")
+                                        "Admin" -> "👑 " + txt("role_admin")
+                                        else -> r
+                                    },
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else PolarLight
+                                )
+                            },
+                            selected = isSelected,
+                            onClick = {
+                                coroutineScope.launch { drawerState.close() }
+                                viewModel.switchRole(r)
+                            },
+                            colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                selectedContainerColor = PrimaryCyan
+                            )
+                        )
+                    }
+
+                    Divider(color = PrimaryCyan.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text(
+                        text = if (lang == "ar") "🌐 شاشات التسوق والطلبات" else "🌐 Commerce & Orders",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryCyan,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🏪 المتجر الرئيسي" else "🏪 Marketplace Home", color = PolarLight) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            viewModel.switchRole("Customer")
+                            viewModel.setCustomerActiveTab(0)
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
                     androidx.compose.material3.NavigationDrawerItem(
                         label = { Text(if (lang == "ar") "🛒 السلة والطلبات" else "🛒 Cart & Orders", color = PolarLight) },
                         selected = false,
                         onClick = {
                             coroutineScope.launch { drawerState.close() }
+                            viewModel.switchRole("Customer")
                             viewModel.setCustomerActiveTab(1)
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🧺 محسن السلة والمتاجر ⚡" else "🧺 Basket Optimizer ⚡", color = Color(0xFFF59E0B)) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showBasketOptimizerDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🔥 استكشاف التريندات (Discovery)" else "🔥 Viral Discovery Feed", color = AccentCoral) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            viewModel.switchRole("Customer")
+                            viewModel.setCustomerActiveTab(6)
                         },
                         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                     )
@@ -1593,6 +1685,7 @@ fun MainLayout(viewModel: MarketViewModel) {
                         selected = false,
                         onClick = {
                             coroutineScope.launch { drawerState.close() }
+                            viewModel.switchRole("Customer")
                             viewModel.setCustomerActiveTab(2)
                         },
                         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
@@ -1602,9 +1695,112 @@ fun MainLayout(viewModel: MarketViewModel) {
                         selected = false,
                         onClick = {
                             coroutineScope.launch { drawerState.close() }
+                            viewModel.switchRole("Customer")
                             viewModel.setCustomerActiveTab(4)
                         },
                         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+
+                    Divider(color = PrimaryCyan.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text(
+                        text = if (lang == "ar") "🤖 مزايا الذكاء الاصطناعي والكاميرا" else "🤖 AI & Camera Hub",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SecondaryMint,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🍎 فاحص السعرات والغذائيات" else "🍎 Calorie & Nutrition Scan", color = Color(0xFF00F5D4)) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showCalorieScannerDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🔍 عدسة التسوق المرئية" else "🔍 Shopping Lens AI", color = PrimaryCyan) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showShoppingLensDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "📡 رادار مقارنة الأسعار" else "📡 Price Radar AI", color = PolarLight) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showPriceRadarDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🧾 قارئ الفواتير الذكي" else "🧾 Receipt Intelligence OCR", color = AccentCoral) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showReceiptIntelligenceDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🎨 ستوديو الإبداع وتوليد الإعلانات" else "🎨 AI Creative Studio", color = Color(0xFFF43F5E)) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showCreativeStudioDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🤖 مركز قيادة الوكيل الرئيسي" else "🤖 AI Master Agent Hub", color = WarmAmbar) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showMasterAgentDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+
+                    Divider(color = PrimaryCyan.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text(
+                        text = if (lang == "ar") "🎬 الوسائط والتجارة الاجتماعية" else "🎬 Social & Video Feeds",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF22D3EE),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "🎬 مقاطع تيك توك للتسوق" else "🎬 TikTok Commerce Feed", color = Color.White) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showTikTokFeedDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(if (lang == "ar") "📸 قصص وسناب شات" else "📸 Snapchat Social Stories", color = Color(0xFFFFFC00)) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            showSnapchatFeedDialog = true
+                        },
+                        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                    )
+
+                    Divider(color = PrimaryCyan.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text(
+                        text = if (lang == "ar") "⚙️ الملف الشخصي والأمان" else "⚙️ Profile & Security",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PolarLight,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                     )
                     androidx.compose.material3.NavigationDrawerItem(
                         label = { Text(if (lang == "ar") "👤 الملف الشخصي" else "👤 Personal Profile", color = PolarLight) },
@@ -1656,41 +1852,6 @@ fun MainLayout(viewModel: MarketViewModel) {
                         },
                         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                     )
-                    Divider(color = PrimaryCyan.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
-                    Text(
-                        text = if (lang == "ar") "الصلاحيات (الأدوار)" else "Permissions (Roles)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryCyan,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                    roles.forEach { r ->
-                        val isSelected = currentRole == r
-                        androidx.compose.material3.NavigationDrawerItem(
-                            label = {
-                                Text(
-                                    text = when (r) {
-                                        "Customer" -> txt("role_customer")
-                                        "Merchant" -> txt("role_merchant")
-                                        "Delivery" -> txt("role_delivery")
-                                        "Admin" -> txt("role_admin")
-                                        else -> r
-                                    },
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else PolarLight
-                                )
-                            },
-                            selected = isSelected,
-                            onClick = {
-                                coroutineScope.launch { drawerState.close() }
-                                viewModel.switchRole(r)
-                            },
-                            colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                selectedContainerColor = PrimaryCyan
-                            )
-                        )
-                    }
-                    Divider(color = PrimaryCyan.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
                     androidx.compose.material3.NavigationDrawerItem(
                         label = { Text(if (lang == "ar") "✨ أدوات وميزات إضافية" else "✨ Extra Tools & Features", color = PrimaryCyan) },
                         selected = false,
@@ -1710,233 +1871,287 @@ fun MainLayout(viewModel: MarketViewModel) {
                         },
                         colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                     )
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         ) {
             Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = headerTextColor)
+                // Ultra-Compact Modern Top Bar (Reduced by 50% vertical footprint)
+                Surface(
+                    color = headerBgColor,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Brand & Compact Workspace Identity
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(
+                                onClick = { coroutineScope.launch { drawerState.open() } },
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = headerTextColor, modifier = Modifier.size(18.dp))
                             }
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_app_brand_logo),
                                 contentDescription = "AI Store Logo",
                                 tint = Color.Unspecified,
-                                modifier = Modifier.size(28.dp).padding(end = 8.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Column {
-                                Text(
-                                    txt("app_title"),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = headerTextColor
-                                )
-                                Text(
-                                    txt("app_description"),
-                                    fontSize = 10.sp,
-                                    color = headerSubtextColor
-                                )
+                            Text(
+                                txt("app_title"),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = headerTextColor
+                            )
+                            // Compact Workspace Tag
+                            val roleLabel = when (currentRole) {
+                                "Customer" -> if (lang == "ar") "مشتري" else "Buyer"
+                                "Merchant" -> if (lang == "ar") "تاجر" else "Seller"
+                                "Delivery" -> if (lang == "ar") "توصيل" else "Driver"
+                                "Admin" -> if (lang == "ar") "إدارة" else "Admin"
+                                else -> ""
                             }
-                        }
-                    },
-                actions = {
-                    Row(
-                        modifier = Modifier.padding(end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Quick switch language buttons
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(headerButtonBg)
-                                .border(1.dp, headerButtonBorder, RoundedCornerShape(8.dp))
-                                .clickable { viewModel.toggleLanguage() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (lang == "ar") "EN" else "عربي",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = headerButtonTextColor
-                            )
-                        }
-
-                        // Dark mode toggle button
-                        Box(
-                            modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(headerButtonBg)
-                                    .border(1.dp, headerButtonBorder, RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.toggleDarkMode() }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (isDark) "☀️" else "🌙",
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        // Real-time Notification Bell dropdown showing price drops and order updates
-                        val notifications by viewModel.saleNotifications.collectAsState()
-                        var showNotificationsDropdown by remember { mutableStateOf(false) }
-                        
-                        Box {
-                            IconButton(
-                                onClick = { showNotificationsDropdown = !showNotificationsDropdown },
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(headerButtonBg)
-                                    .border(1.dp, headerButtonBorder, RoundedCornerShape(8.dp))
-                                    .size(32.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Notifications,
-                                        contentDescription = "Notifications",
-                                        tint = headerButtonTextColor,
-                                        modifier = Modifier.size(16.dp)
+                            if (roleLabel.isNotEmpty()) {
+                                Surface(
+                                    color = SecondaryMint.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(4.dp),
+                                    modifier = Modifier.padding(start = 2.dp)
+                                ) {
+                                    Text(
+                                        text = roleLabel,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SecondaryMint,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
-                                    if (notifications.isNotEmpty()) {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .offset(x = (2).dp, y = (-2).dp)
-                                                .size(8.dp)
-                                                .background(Color.Red, CircleShape)
-                                        )
-                                    }
                                 }
                             }
-                            
-                            DropdownMenu(
-                                expanded = showNotificationsDropdown,
-                                onDismissRequest = { showNotificationsDropdown = false },
+                        }
+
+                        // Compact Actions Bar
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Quick switch language button
+                            Box(
                                 modifier = Modifier
-                                    .width(280.dp)
-                                    .background(Color(0xFF1E293B))
-                                    .border(1.dp, SecondaryMint.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(headerButtonBg)
+                                    .border(0.5.dp, headerButtonBorder, RoundedCornerShape(6.dp))
+                                    .clickable { viewModel.toggleLanguage() }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                if (notifications.isEmpty()) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = if (lang == "ar") "لا توجد إشعارات جديدة" else "No new notifications",
-                                                color = Color(0xFF94A3B8),
-                                                fontSize = 12.sp
+                                Text(
+                                    text = if (lang == "ar") "EN" else "عربي",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = headerButtonTextColor
+                                )
+                            }
+
+                            // Dark mode toggle button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(headerButtonBg)
+                                    .border(0.5.dp, headerButtonBorder, RoundedCornerShape(6.dp))
+                                    .clickable { viewModel.toggleDarkMode() }
+                                    .padding(horizontal = 5.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isDark) "☀️" else "🌙",
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            // Quick All-Screens Launcher for Platform Owner & Users
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(WarmAmbar.copy(alpha = 0.25f))
+                                    .border(0.5.dp, WarmAmbar, RoundedCornerShape(6.dp))
+                                    .clickable { coroutineScope.launch { drawerState.open() } }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (lang == "ar") "👑 كل الشاشات" else "👑 All Screens",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFDE68A)
+                                )
+                            }
+
+                            // Real-time Notification Bell
+                            val notifications by viewModel.saleNotifications.collectAsState()
+                            var showNotificationsDropdown by remember { mutableStateOf(false) }
+                            
+                            Box {
+                                IconButton(
+                                    onClick = { showNotificationsDropdown = !showNotificationsDropdown },
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(headerButtonBg)
+                                        .border(0.5.dp, headerButtonBorder, RoundedCornerShape(6.dp))
+                                        .size(26.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Notifications,
+                                            contentDescription = "Notifications",
+                                            tint = headerButtonTextColor,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        if (notifications.isNotEmpty()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .offset(x = 1.dp, y = (-1).dp)
+                                                    .size(6.dp)
+                                                    .background(Color.Red, CircleShape)
                                             )
-                                        },
-                                        onClick = { showNotificationsDropdown = false }
-                                    )
-                                } else {
-                                    notifications.forEach { notif ->
+                                        }
+                                    }
+                                }
+                                
+                                DropdownMenu(
+                                    expanded = showNotificationsDropdown,
+                                    onDismissRequest = { showNotificationsDropdown = false },
+                                    modifier = Modifier
+                                        .width(280.dp)
+                                        .background(Color(0xFF1E293B))
+                                        .border(1.dp, SecondaryMint.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                ) {
+                                    if (notifications.isEmpty()) {
                                         DropdownMenuItem(
                                             text = {
-                                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                    Text(
-                                                        text = notif.productName,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White,
-                                                        fontSize = 11.sp,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    Text(
-                                                        text = notif.statusText ?: (if (lang == "ar") "🔥 انخفاض السعر! الآن $${notif.newPrice} (كان $${notif.oldPrice})" else "🔥 Price Drop! Now $${notif.newPrice} (was $${notif.oldPrice})"),
-                                                        color = if (notif.isFromPurchaseHistory) SecondaryMint else AccentCoral,
-                                                        fontSize = 10.sp,
-                                                        lineHeight = 13.sp
-                                                    )
-                                                }
+                                                Text(
+                                                    text = if (lang == "ar") "لا توجد إشعارات جديدة" else "No new notifications",
+                                                    color = Color(0xFF94A3B8),
+                                                    fontSize = 12.sp
+                                                )
                                             },
                                             onClick = { showNotificationsDropdown = false }
                                         )
+                                    } else {
+                                        notifications.forEach { notif ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                        Text(
+                                                            text = notif.productName,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color.White,
+                                                            fontSize = 11.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            text = notif.statusText ?: (if (lang == "ar") "🔥 انخفاض السعر! الآن $${notif.newPrice} (كان $${notif.oldPrice})" else "🔥 Price Drop! Now $${notif.newPrice} (was $${notif.oldPrice})"),
+                                                            color = if (notif.isFromPurchaseHistory) SecondaryMint else AccentCoral,
+                                                            fontSize = 10.sp,
+                                                            lineHeight = 13.sp
+                                                        )
+                                                    }
+                                                },
+                                                onClick = { showNotificationsDropdown = false }
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        // Shopping Cart Badge Count in top navigation bar
-                        val cartItemsForBadge by viewModel.cartItems.collectAsState()
-                        val badgeCount = cartItemsForBadge.sumOf { it.quantity }
-                        if (badgeCount > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(SecondaryMint.copy(alpha = 0.2f))
-                                    .border(1.dp, SecondaryMint, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 6.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            // Shopping Cart Badge Count
+                            val cartItemsForBadge by viewModel.cartItems.collectAsState()
+                            val badgeCount = cartItemsForBadge.sumOf { it.quantity }
+                            if (badgeCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(SecondaryMint.copy(alpha = 0.2f))
+                                        .border(0.5.dp, SecondaryMint, RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text("🛒", fontSize = 11.sp)
-                                    Text(
-                                        text = "$badgeCount",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SecondaryMint
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text("🛒", fontSize = 9.sp)
+                                        Text(
+                                            text = "$badgeCount",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SecondaryMint
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        Text(
-                            text = txt("hi") + (currentUser?.name ?: "Guest"),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = headerUserTextColor
-                        )
+                            Text(
+                                text = (currentUser?.name ?: "Guest").take(8),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = headerUserTextColor
+                            )
+                        }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = headerBgColor)
-            )
-        },
-        containerColor = SlateDarkBg
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(SlateDarkBg)
-        ) {
-            Column(
+                }
+            },
+            containerColor = SlateDarkBg
+        ) { innerPadding ->
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .background(SlateDarkBg)
             ) {
-                Text(
-                    text = when (currentRole) {
-                        "Customer" -> txt("workspace_customer")
-                        "Merchant" -> txt("workspace_merchant")
-                        "Delivery" -> txt("workspace_delivery")
-                        "Admin" -> txt("workspace_admin")
-                        else -> ""
-                    },
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryMint,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
-                )
-
-                // Dynamic Dashboard Panel loaded based on Selected Role
-                Box(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1.0f)
+                        .fillMaxSize()
+                        .padding(innerPadding)
                 ) {
+                    // Dynamic Dashboard Panel loaded based on Selected Role (Expanded vertical height)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1.0f)
+                    ) {
                     GlobalErrorBoundary {
                         when (currentRole) {
                             "Customer" -> CustomerScreen(viewModel)
                             "Merchant" -> MerchantScreen(viewModel)
                             "Delivery" -> DeliveryScreen(viewModel)
-                            "Admin" -> AdminScreen(viewModel)
+                            "Admin" -> AdminScreen(
+                                viewModel = viewModel,
+                                onOpenCalorieScanner = { showCalorieScannerDialog = true },
+                                onOpenTikTokFeed = { showTikTokFeedDialog = true },
+                                onOpenSnapchatFeed = { showSnapchatFeedDialog = true },
+                                onOpenMasterAgent = { showMasterAgentDialog = true },
+                                onOpenShoppingLens = { showShoppingLensDialog = true },
+                                onOpenPriceRadar = { showPriceRadarDialog = true },
+                                onOpenBasketOptimizer = { showBasketOptimizerDialog = true },
+                                onOpenShoppingMission = { showShoppingMissionDialog = true },
+                                onOpenReceiptScan = { showReceiptIntelligenceDialog = true },
+                                onOpenCreativeStudio = { showCreativeStudioDialog = true },
+                                onOpenExtraFeatures = { showExtraFeaturesDialog = true },
+                                onOpenProfile = { tab ->
+                                    profileDialogInitialTab = tab
+                                    showProfileDialog = true
+                                }
+                            )
                         }
                     }
                 }
@@ -1970,6 +2185,127 @@ fun MainLayout(viewModel: MarketViewModel) {
                     )
                 }
 
+                if (showAgentControlCenter) {
+                    AgentControlCenterScreen(
+                        onDismiss = { showAgentControlCenter = false }
+                    )
+                }
+
+                val allProductsState by viewModel.products.collectAsState()
+                val currentCartItemsState by viewModel.cartItems.collectAsState()
+                val currentWishlistState by viewModel.wishlist.collectAsState()
+
+                if (showShoppingLensDialog) {
+                    ShoppingLensDialog(
+                        catalog = allProductsState,
+                        onDismiss = { showShoppingLensDialog = false },
+                        onAddToCart = { product ->
+                            viewModel.addProductToCart(product, 1, "Retail")
+                        },
+                        onOpenCreativeStudio = { detectedResult ->
+                            showShoppingLensDialog = false
+                            showCreativeStudioDialog = true
+                        }
+                    )
+                }
+
+                if (showPriceRadarDialog) {
+                    PriceRadarDialog(
+                        catalog = allProductsState,
+                        onDismiss = { showPriceRadarDialog = false }
+                    )
+                }
+
+                if (showBasketOptimizerDialog) {
+                    BasketOptimizerDialog(
+                        cartItems = currentCartItemsState,
+                        wishlistProducts = currentWishlistState,
+                        onDismiss = { showBasketOptimizerDialog = false },
+                        onApplyOptimization = { _ -> }
+                    )
+                }
+
+                if (showShoppingMissionDialog) {
+                    ShoppingMissionDialog(
+                        catalog = allProductsState,
+                        onDismiss = { showShoppingMissionDialog = false },
+                        onAddMissionItemsToCart = { items ->
+                            items.forEach { mItem ->
+                                val p = allProductsState.find { it.id == mItem.productId }
+                                if (p != null) {
+                                    viewModel.addProductToCart(p, mItem.quantity, "Retail")
+                                }
+                            }
+                        }
+                    )
+                }
+
+                if (showReceiptIntelligenceDialog) {
+                    ReceiptIntelligenceDialog(
+                        onDismiss = { showReceiptIntelligenceDialog = false },
+                        onSubmitClaim = { evId ->
+                            AgentEngine.sendMessage(
+                                sourceAgent = AgentKey.TRUST_CUSTOMER_SUPPORT.key,
+                                targetAgent = AgentKey.FINANCE_UNIT_ECONOMICS.key,
+                                messageType = "REFUND_CLAIM",
+                                payloadSummary = "Dispute refund approved by buyer for receipt evidence $evId"
+                            )
+                        }
+                    )
+                }
+
+                if (showCreativeStudioDialog) {
+                    CreativeStudioDialog(
+                        onDismiss = { showCreativeStudioDialog = false }
+                    )
+                }
+
+                selectedOrderForDigitalTwin?.let { order ->
+                    OrderDigitalTwinDialog(
+                        order = order,
+                        onDismiss = { selectedOrderForDigitalTwin = null }
+                    )
+                }
+
+                if (showCalorieScannerDialog) {
+                    androidx.compose.ui.window.Dialog(
+                        onDismissRequest = { showCalorieScannerDialog = false },
+                        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                    ) {
+                        CalorieNutritionScannerScreen(
+                            viewModel = viewModel,
+                            lang = lang,
+                            onDismiss = { showCalorieScannerDialog = false }
+                        )
+                    }
+                }
+
+                if (showTikTokFeedDialog) {
+                    androidx.compose.ui.window.Dialog(
+                        onDismissRequest = { showTikTokFeedDialog = false },
+                        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                    ) {
+                        TikTokShortVideoScreen(
+                            viewModel = viewModel,
+                            lang = lang,
+                            onDismiss = { showTikTokFeedDialog = false }
+                        )
+                    }
+                }
+
+                if (showSnapchatFeedDialog) {
+                    androidx.compose.ui.window.Dialog(
+                        onDismissRequest = { showSnapchatFeedDialog = false },
+                        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                    ) {
+                        SnapchatSocialFeedScreen(
+                            viewModel = viewModel,
+                            lang = lang,
+                            onDismiss = { showSnapchatFeedDialog = false }
+                        )
+                    }
+                }
+
                 val isCameraSearchingOverlay by viewModel.isCameraSearching.collectAsState()
                 val isScanningReceiptOverlay by viewModel.isScanningReceipt.collectAsState()
                 val isComparingMapOverlay by viewModel.isComparingDetailedPrice.collectAsState()
@@ -1997,42 +2333,22 @@ fun MainLayout(viewModel: MarketViewModel) {
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // AI Master Agent Unified Hub Button
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(0xFF8E24AA), PrimaryCyan)))
-                            .clickable { showMasterAgentDialog = true }
-                            .padding(2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(CardDarkBg),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "AI Master Agent",
-                                    tint = SecondaryMint,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Text(
-                                    text = if (lang == "ar") "وكيل AI" else "AI Master",
-                                    fontSize = 7.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
+                    // Vision X Command Orb
+                    CommandOrb(
+                        onOpenLens = { showShoppingLensDialog = true },
+                        onOpenPriceRadar = { showPriceRadarDialog = true },
+                        onOpenBasketOptimizer = { showBasketOptimizerDialog = true },
+                        onOpenShoppingMission = { showShoppingMissionDialog = true },
+                        onOpenReceiptScan = { showReceiptIntelligenceDialog = true },
+                        onOpenCreativeStudio = { showCreativeStudioDialog = true },
+                        onOpenAgentHub = { showAgentControlCenter = true }
+                    )
+
+                    // Floating Animated Talking & Moving Robot Companion
+                    FloatingTalkingRobotCompanion(
+                        lang = lang,
+                        onClick = { showMasterAgentDialog = true }
+                    )
 
                     // Quick Call Gemini Button
                     Box(
@@ -2667,6 +2983,9 @@ fun MainLayout(viewModel: MarketViewModel) {
                 }
             }
         }
+
+        // Space Turquoise Dynamic Interactive Robot Companion
+        // com.example.ui.agent.SpaceTurquoiseInteractiveRobot(isAr = lang == "ar")
         } // Close ModalNavigationDrawer
     }
     }
@@ -2765,6 +3084,10 @@ fun CustomerScreen(viewModel: MarketViewModel) {
     var orderTypeChosen by remember { mutableStateOf("Retail") } // "Retail" vs "Wholesale"
     var showCameraSearchDialog by remember { mutableStateOf(false) }
     var showVoiceSearchDialog by remember { mutableStateOf(false) }
+    var showWishlistBasketOptimizerDialog by remember { mutableStateOf(false) }
+    var showMarketTrendsDashboard by remember { mutableStateOf(false) }
+    var showArProduct by remember { mutableStateOf<ProductEntity?>(null) }
+    var productForPriceAlert by remember { mutableStateOf<ProductEntity?>(null) }
 
     val voiceQuery by viewModel.voiceSearchQuery.collectAsState()
     LaunchedEffect(voiceQuery) {
@@ -2776,25 +3099,38 @@ fun CustomerScreen(viewModel: MarketViewModel) {
 
     val customerActiveTab by viewModel.customerActiveTab.collectAsState()
 
+    if (showMarketTrendsDashboard) {
+        com.example.ui.visionx.MarketTrendsDashboard(viewModel = viewModel, lang = lang, onBack = { showMarketTrendsDashboard = false })
+        return
+    }
+
+    if (showArProduct != null) {
+        com.example.ui.visionx.ArProductPlacementScreen(product = showArProduct!!, lang = lang, onDismiss = { showArProduct = null })
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Global Currency Selector Header
+        // Compact Streamlined Currency & Status Bar (Reduced to 50% height)
         val selectedCurrency by viewModel.selectedCurrency.collectAsState()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 2.dp),
+                .clip(RoundedCornerShape(8.dp))
+                .background(CardDarkBg)
+                .border(0.5.dp, PrimaryCyan.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 6.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = if (lang == "ar") "🌿 أسواق الجوافة" else "🌿 Guava Markets",
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     color = PolarLight
                 )
@@ -2802,110 +3138,82 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                 // Pulsing AI Tour Trigger
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(6.dp))
                         .background(PrimaryCyan.copy(alpha = 0.15f))
                         .clickable {
                             showTourOverlay = true
                             tourStep = 0
                         }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Text("✨", fontSize = 10.sp)
+                        Text("✨", fontSize = 9.sp)
                         Text(
-                            text = if (lang == "ar") "جولة الذكاء الاصطناعي" else "AI Tour",
+                            text = if (lang == "ar") "جولة الذكاء" else "AI Tour",
                             fontSize = 8.sp,
-                            fontWeight = FontWeight.Black,
+                            fontWeight = FontWeight.Bold,
                             color = PrimaryCyan
                         )
                     }
                 }
+
                 val localUserProfile = userProfile
                 if (localUserProfile != null) {
                     LaunchedEffect(localUserProfile) {
                         viewModel.checkAndAddBadges(localUserProfile)
                     }
 
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFFF5722).copy(alpha = 0.15f))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFFF5722).copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "🔥 " + localUserProfile.loginStreak + (if (lang == "ar") " أيام" else " Days"),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFF5722)
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(SecondaryMint.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = (if (lang == "ar") "نقاطك: " else "XP: ") + localUserProfile.loyaltyPoints,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryMint
-                                )
-                            }
+                            Text(
+                                text = "🔥 " + localUserProfile.loginStreak + "d",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFF5722)
+                            )
                         }
-                        
-                        if (localUserProfile.badges.isNotEmpty()) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                localUserProfile.badges.split(",").forEach { badge ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(PrimaryCyan.copy(alpha = 0.1f))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(text = badge, fontSize = 8.sp, color = PrimaryCyan, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(SecondaryMint.copy(alpha = 0.15f))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "XP " + localUserProfile.loyaltyPoints,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SecondaryMint
+                            )
                         }
                     }
                 }
             }
             
+            // Ultra-Compact Currency selector
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .widthIn(max = 240.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(CardDarkBg)
-                    .border(1.dp, PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.widthIn(max = 160.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Currency Icon",
-                    tint = PrimaryCyan,
-                    modifier = Modifier.size(12.dp)
-                )
                 Text(
-                    text = if (lang == "ar") "العملة: " else "Curr: ",
-                    fontSize = 10.sp,
+                    text = if (lang == "ar") "العملة:" else "Curr:",
+                    fontSize = 9.sp,
                     color = SoftGrayText
                 )
                 androidx.compose.foundation.lazy.LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     val allCurrencies = listOf(
@@ -2916,7 +3224,7 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                         val isSel = selectedCurrency == curr
                         Text(
                             text = curr,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = if (isSel) FontWeight.Black else FontWeight.Normal,
                             color = if (isSel) SecondaryMint else SoftGrayText.copy(alpha = 0.7f),
                             modifier = Modifier
@@ -2927,21 +3235,23 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                 }
             }
         }
-        // Sticky/Elegant Pill-Shaped Tab Selector with Icons & Counters
+        // Ultra-Compact Pill-Shaped Tab Selector (Reduced height by 50%)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .padding(vertical = 1.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(CardDarkBg)
-                .border(1.dp, PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .border(0.5.dp, PrimaryCyan.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+                .padding(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             val tabs = listOf(
                 Triple(0, if (lang == "ar") "المتجر" else "Store", Icons.Default.Home),
+                Triple(6, if (lang == "ar") "اكتشف 🔥" else "Discovery 🔥", Icons.Default.Explore),
                 Triple(3, if (lang == "ar") "العروض" else "Offers", Icons.Default.Star),
-                Triple(4, if (lang == "ar") "قائمة التسوق" else "Shopping List", Icons.Default.ShoppingCart)
+                Triple(4, if (lang == "ar") "قائمة التسوق" else "Shopping List", Icons.Default.ShoppingCart),
+                Triple(5, if (lang == "ar") "محسن السلة ⚡" else "Optimizer ⚡", Icons.Default.Savings)
             )
 
             tabs.forEach { (index, title, icon) ->
@@ -2949,7 +3259,7 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .then(
                             if (isSelected) {
                                 Modifier.background(Brush.horizontalGradient(listOf(PrimaryCyan, SecondaryMint)))
@@ -2958,23 +3268,23 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                             }
                         )
                         .clickable { viewModel.setCustomerActiveTab(index) }
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 3.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = title,
                             tint = if (isSelected) SlateDarkBg else SoftGrayText,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(13.dp)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = title,
-                            fontSize = 8.sp,
+                            fontSize = 9.sp,
                             fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
                             color = if (isSelected) SlateDarkBg else SoftGrayText,
                             maxLines = 1,
@@ -3208,6 +3518,21 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                                             }
                                         )
                                     }
+                                }
+                            )
+                        }
+
+                        // 🧠 Offline-First Smart Recommendations & Recently Viewed (Room DB)
+                        item {
+                            CollapsibleSection(
+                                title = if (lang == "ar") "🧠 التوصيات المحلية المحفوظة (Room DB)" else "🧠 Offline-First Recommendations",
+                                content = {
+                                    com.example.ui.recommendations.OfflineRecommendationsView(
+                                        marketViewModel = viewModel,
+                                        lang = lang,
+                                        allProducts = productsList,
+                                        onProductClick = { p -> selectedProductForDetail = p }
+                                    )
                                 }
                             )
                         }
@@ -3869,13 +4194,28 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                                                     fontWeight = FontWeight.Bold,
                                                     color = PolarLight
                                                 )
+                                                Text(
+                                                    text = "(${wishlistList.size})",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SoftGrayText
+                                                )
                                             }
-                                            Text(
-                                                text = "(${wishlistList.size})",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = SoftGrayText
-                                            )
+
+                                            // Quick Basket Optimizer Action for Wishlist
+                                            FilledTonalButton(
+                                                onClick = { viewModel.setCustomerActiveTab(5) },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color(0xFF10B981))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (lang == "ar") "شاشة تحسين السلة ⚡" else "Basket Optimizer ⚡",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                         Spacer(modifier = Modifier.height(6.dp))
                                         LazyRow(
@@ -3953,6 +4293,20 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                                     }
                                 }
                             }
+                        }
+
+                        // Watched List & Firebase Cloud Messaging Target Price Alerts
+                        item {
+                            com.example.ui.visionx.WatchedProductsView(
+                                viewModel = viewModel,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                onNavigateToProduct = { prodId ->
+                                    val found = productsList.find { it.id == prodId }
+                                    if (found != null) selectedProductForDetail = found
+                                }
+                            )
                         }
 
                         // Saved Catalog Products Wishlist (Accessible directly on main page)
@@ -6032,6 +6386,25 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                         )
                     }
                 }
+                5 -> {
+                    // BASKET OPTIMIZER SCREEN
+                    com.example.ui.visionx.BasketOptimizerScreen(
+                        marketViewModel = viewModel,
+                        onBack = { viewModel.setCustomerActiveTab(0) },
+                        onApplyToCart = {
+                            viewModel.setCustomerActiveTab(1)
+                        }
+                    )
+                }
+                6 -> {
+                    // SOCIAL MEDIA VIRAL DISCOVERY FEED SCREEN
+                    com.example.ui.discovery.DiscoveryFeedScreen(
+                        marketViewModel = viewModel,
+                        onBack = { viewModel.setCustomerActiveTab(0) },
+                        onProductClick = { prod -> selectedProductForDetail = prod },
+                        onAddToCart = { prod -> viewModel.addProductToCart(prod, 1, "Retail") }
+                    )
+                }
             }
         }
     }
@@ -6039,6 +6412,9 @@ fun CustomerScreen(viewModel: MarketViewModel) {
     // Product Details & Booking Dialog
     if (selectedProductForDetail != null) {
         val prod = selectedProductForDetail!!
+        LaunchedEffect(prod.id) {
+            viewModel.trackProductView(prod)
+        }
         AlertDialog(
             onDismissRequest = { selectedProductForDetail = null },
             title = {
@@ -6110,7 +6486,9 @@ fun CustomerScreen(viewModel: MarketViewModel) {
 
                     if (isComparingPrice) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -6123,6 +6501,19 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                             )
                         }
                     } else if (priceComparison != null) {
+                        // Historical Price Chart
+                        Text(
+                            text = if (lang == "ar") "📈 تاريخ السعر (30 يوم)" else "📈 30-Day Price Trend",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        com.example.ui.D3PriceChartComponent(
+                            data = "[{\"date\": \"2026-09-01\", \"price\": ${prod.retailPrice * 0.9}}, {\"date\": \"2026-09-15\", \"price\": ${prod.retailPrice * 1.1}}, {\"date\": \"2026-10-01\", \"price\": ${prod.retailPrice}}]",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             priceComparison!!.forEach { (retailer, price) ->
                                 val isBest = retailer.contains("Smart") || retailer.contains("Marketplace")
@@ -6207,6 +6598,9 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    ProductReviewsSection(productId = prod.id, viewModel = viewModel, lang = lang)
                 }
             },
             confirmButton = {
@@ -6248,17 +6642,44 @@ fun CustomerScreen(viewModel: MarketViewModel) {
                 }
             },
             dismissButton = {
-                OutlinedButton(
-                    onClick = {
-                        viewModel.performAiProductInsights(prod.name, prod.ingredients)
-                        selectedProductForDetail = null
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryMint)
-                ) {
-                    Text(txt("chem_report"))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            productForPriceAlert = prod
+                            selectedProductForDetail = null
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B)),
+                        modifier = Modifier.testTag("btn_set_alert_from_detail")
+                    ) {
+                        Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFF59E0B))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (lang == "ar") "مراقبة السعر 🔔" else "Watch 🔔", fontSize = 10.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.performAiProductInsights(prod.name, prod.ingredients)
+                            selectedProductForDetail = null
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryMint)
+                    ) {
+                        Text(txt("chem_report"), fontSize = 10.sp)
+                    }
                 }
             },
             containerColor = CardDarkBg
+        )
+    }
+
+    // Target Price Point Setting Modal for Watched Product
+    if (productForPriceAlert != null) {
+        com.example.ui.visionx.PriceAlertSettingsModal(
+            product = productForPriceAlert!!,
+            viewModel = viewModel,
+            onDismiss = { productForPriceAlert = null },
+            onAlertSet = {
+                productForPriceAlert = null
+            }
         )
     }
 
@@ -6469,13 +6890,57 @@ fun CustomerScreen(viewModel: MarketViewModel) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = if (lang == "ar") 
-                            "إجمالي قيمة المشتريات هو: ${viewModel.formatPrice(cartItemsList.sumOf { it.price * it.quantity }, lang)}\nيرجى تحديد أسلوب السداد المعتمد لإتمام المعاملة فورياً:"
-                            else "Your order subtotal: ${viewModel.formatPrice(cartItemsList.sumOf { it.price * it.quantity }, lang)}\nPlease choose your pre-set payment gateway mode below:",
-                        fontSize = 11.sp,
-                        color = PolarLight
-                    )
+                    val appliedCoupon by viewModel.appliedCoupon.collectAsState()
+                    val subtotal = cartItemsList.sumOf { it.price * it.quantity }
+                    val discount = if (appliedCoupon != null) {
+                        if (appliedCoupon!!.discountPercent > 0) subtotal * appliedCoupon!!.discountPercent else appliedCoupon!!.discountAmount
+                    } else 0.0
+                    val finalTotal = (subtotal - discount).coerceAtLeast(0.0)
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CardDarkBg, RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (lang == "ar") "المجموع الفرعي:" else "Subtotal:", fontSize = 11.sp, color = SoftGrayText)
+                            Text(viewModel.formatPrice(subtotal, lang), fontSize = 11.sp, color = PolarLight)
+                        }
+                        if (appliedCoupon != null) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(if (lang == "ar") "قسيمة الخصم (${appliedCoupon!!.code}):" else "Coupon (${appliedCoupon!!.code}):", fontSize = 11.sp, color = SecondaryMint)
+                                Text("-" + viewModel.formatPrice(discount, lang), fontSize = 11.sp, color = SecondaryMint, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Divider(color = SoftGrayText.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 2.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (lang == "ar") "الإجمالي النهائي:" else "Final Total:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                            Text(viewModel.formatPrice(finalTotal, lang), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryCyan)
+                        }
+                    }
+
+                    if (appliedCoupon != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PrimaryCyan.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🎟️ Applied: ${appliedCoupon!!.code} (${appliedCoupon!!.title})",
+                                fontSize = 10.sp,
+                                color = SecondaryMint,
+                                fontWeight = FontWeight.Bold
+                            )
+                            TextButton(onClick = { viewModel.removeCoupon() }) {
+                                Text("Remove", fontSize = 9.sp, color = AccentCoral)
+                            }
+                        }
+                    }
 
                     Divider(color = SoftGrayText.copy(alpha = 0.2f))
 
@@ -7152,6 +7617,18 @@ fun CustomerScreen(viewModel: MarketViewModel) {
             containerColor = CardDarkBg
         )
     }
+
+    val wishlistItemsForOptimizer by viewModel.wishlist.collectAsState()
+    if (showWishlistBasketOptimizerDialog) {
+        com.example.ui.visionx.BasketOptimizerDialog(
+            cartItems = emptyList(),
+            wishlistProducts = wishlistItemsForOptimizer,
+            onDismiss = { showWishlistBasketOptimizerDialog = false },
+            onApplyOptimization = { optResult ->
+                showWishlistBasketOptimizerDialog = false
+            }
+        )
+    }
 }
 
 // ---------------- MERCHANT SCREEN ----------------
@@ -7735,7 +8212,21 @@ fun DeliveryScreen(viewModel: MarketViewModel) {
 
 // ---------------- ADMIN SCREEN ----------------
 @Composable
-fun AdminScreen(viewModel: MarketViewModel) {
+fun AdminScreen(
+    viewModel: MarketViewModel,
+    onOpenCalorieScanner: () -> Unit = {},
+    onOpenTikTokFeed: () -> Unit = {},
+    onOpenSnapchatFeed: () -> Unit = {},
+    onOpenMasterAgent: () -> Unit = {},
+    onOpenShoppingLens: () -> Unit = {},
+    onOpenPriceRadar: () -> Unit = {},
+    onOpenBasketOptimizer: () -> Unit = {},
+    onOpenShoppingMission: () -> Unit = {},
+    onOpenReceiptScan: () -> Unit = {},
+    onOpenCreativeStudio: () -> Unit = {},
+    onOpenExtraFeatures: () -> Unit = {},
+    onOpenProfile: (initialTab: Int) -> Unit = {}
+) {
     val SlateDarkBg = MaterialTheme.colorScheme.background
     val CardDarkBg = MaterialTheme.colorScheme.surface
     val PolarLight = MaterialTheme.colorScheme.onBackground
@@ -7763,6 +8254,384 @@ fun AdminScreen(viewModel: MarketViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
+        // ---------------- PLATFORM OWNER MASTER SCREEN HUB & FULL ACCESS MATRIX ----------------
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardDarkBg),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.5.dp, Brush.horizontalGradient(listOf(WarmAmbar, PrimaryCyan, SecondaryMint)), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(text = "👑", fontSize = 24.sp)
+                            Column {
+                                Text(
+                                    text = if (lang == "ar") "لوحة قيادة المالك والمسؤول - مصفوفة الشاشات الكاملة" else "Platform Owner Master Screen Hub",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = WarmAmbar
+                                )
+                                Text(
+                                    text = if (lang == "ar") "صلاحية مباشرة للوصول الفوري والتبديل لكافة بوابات وأدوات المنصة" else "Instant full-access matrix to every portal, AI engine, and interactive screen",
+                                    fontSize = 10.sp,
+                                    color = SoftGrayText
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(WarmAmbar.copy(alpha = 0.2f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(text = "FULL ACCESS ⚡", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = WarmAmbar)
+                        }
+                    }
+
+                    Divider(color = WarmAmbar.copy(alpha = 0.2f))
+
+                    // SECTION 1: Core Roles & Platforms
+                    Text(
+                        text = if (lang == "ar") "🌐 بوابات الأدوار الرئيسية (التبديل الفوري):" else "🌐 Core Role Portals (Instant Switch):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryCyan
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.switchRole("Customer")
+                                viewModel.setCustomerActiveTab(0)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🛒 متجر الزبائن" else "🛒 Customer Store",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+
+                        Button(
+                            onClick = { viewModel.switchRole("Merchant") },
+                            colors = ButtonDefaults.buttonColors(containerColor = SecondaryMint),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🏬 بوابة التجار" else "🏬 Merchant Portal",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+
+                        Button(
+                            onClick = { viewModel.switchRole("Delivery") },
+                            colors = ButtonDefaults.buttonColors(containerColor = WarmAmbar),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🚚 بوابة التوصيل" else "🚚 Delivery Hub",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+                    }
+
+                    // SECTION 2: AI, Camera & Vision Hub
+                    Text(
+                        text = if (lang == "ar") "🤖 الذكاء الاصطناعي والرؤية الحاسوبية (AI & Vision):" else "🤖 AI & Computer Vision Engines:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SecondaryMint
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onOpenCalorieScanner,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00F5D4)),
+                            border = BorderStroke(1.dp, Color(0xFF00F5D4).copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🍎 فاحص السعرات" else "🍎 Calorie Scan",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenShoppingLens,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryCyan),
+                            border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🔍 عدسة التسوق" else "🔍 Shopping Lens",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenReceiptScan,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentCoral),
+                            border = BorderStroke(1.dp, AccentCoral.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🧾 ماسح الفواتير" else "🧾 Receipt OCR",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onOpenCreativeStudio,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF43F5E)),
+                            border = BorderStroke(1.dp, Color(0xFFF43F5E).copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🎨 ستوديو الإبداع" else "🎨 Creative Studio",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenMasterAgent,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = WarmAmbar),
+                            border = BorderStroke(1.dp, WarmAmbar.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🤖 مركز الوكيل الفائق" else "🤖 Master Agent Hub",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // SECTION 3: Social Commerce & Media Feeds
+                    Text(
+                        text = if (lang == "ar") "🎬 التجارة الاجتماعية والوسائط (Social Commerce):" else "🎬 Social & Video Commerce:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCoral
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onOpenTikTokFeed,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🎬 تيك توك للتسوق" else "🎬 TikTok Commerce",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenSnapchatFeed,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFFC00)),
+                            border = BorderStroke(1.dp, Color(0xFFFFFC00).copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "📸 قصص سناب شات" else "📸 Snapchat Stories",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.switchRole("Customer")
+                                viewModel.setCustomerActiveTab(6)
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B)),
+                            border = BorderStroke(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🔥 رادار التريندات" else "🔥 Viral Discovery",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // SECTION 4: Logistics, Optimization & Gamification
+                    Text(
+                        text = if (lang == "ar") "⚡ التحسين، اللوجستيات والمكافآت (Operations & Rewards):" else "⚡ Optimization, Logistics & Gamification:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WarmAmbar
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onOpenPriceRadar,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryCyan),
+                            border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "📡 رادار الأسعار" else "📡 Price Radar",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenBasketOptimizer,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B)),
+                            border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🧺 محسن السلة" else "🧺 Basket Optimizer",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.switchRole("Customer")
+                                viewModel.setCustomerActiveTab(4)
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryMint),
+                            border = BorderStroke(1.dp, SecondaryMint.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "💎 المحفظة الرقمية" else "💎 Crypto Wallet",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.switchRole("Customer")
+                                viewModel.setCustomerActiveTab(2)
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PolarLight),
+                            border = BorderStroke(1.dp, PolarLight.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "📍 تتبع الخريطة GPS" else "📍 GPS Live Map",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { onOpenProfile(6) },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryMint),
+                            border = BorderStroke(1.dp, SecondaryMint.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "🎮 العب واربح" else "🎮 Play & Win Game",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenExtraFeatures,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryCyan),
+                            border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (lang == "ar") "✨ ميزات إضافية" else "✨ Extra Tools",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Market Analytics Dashboard KPIs
         item {
             Card(
@@ -8689,7 +9558,7 @@ fun CameraXPreview(modifier: Modifier) {
                     cameraProvider.unbindAll()
                     cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
                 } catch (e: Exception) {
-                    android.util.Log.e("CameraX", "Binding failed", e)
+                    android.util.Log.e("CameraX", "Binding failed: ${e.message}")
                 }
             }, androidx.core.content.ContextCompat.getMainExecutor(ctx))
             previewView
@@ -9997,7 +10866,6 @@ fun ProfileSettings(
     val genderState by viewModel.userGender.collectAsState()
     val ageState by viewModel.userAge.collectAsState()
     val addressState by viewModel.userAddress.collectAsState()
-    val passwordState by viewModel.userPassword.collectAsState()
 
     val aiVoice by viewModel.aiVoiceEnabled.collectAsState()
     val aiDashboard by viewModel.aiDashboardEnabled.collectAsState()
@@ -10266,7 +11134,8 @@ fun ProfileSettings(
                         4 to (if (lang == "ar") "السلة" else "Cart"),
                         5 to (if (lang == "ar") "الذكاء والموقع" else "AI & Location"),
                         6 to (if (lang == "ar") "العب واربح 🎮" else "Play & Win 🎮"),
-                        7 to (if (lang == "ar") "تصميم التطبيق 🎨" else "App Theme 🎨")
+                        7 to (if (lang == "ar") "تصميم التطبيق 🎨" else "App Theme 🎨"),
+                        8 to (if (lang == "ar") "محفظة القسائم 🎟️" else "Coupon Wallet 🎟️")
                     )
                     items(tabs) { (idx, title) ->
                         val isSel = activeTab == idx
@@ -10291,6 +11160,147 @@ fun ProfileSettings(
                 // Content View based on Active Tab
                 Box(modifier = Modifier.weight(1f)) {
                     when (activeTab) {
+                        8 -> {
+                            // COUPON WALLET SCREEN
+                            val coupons by viewModel.userCoupons.collectAsState()
+                            val appliedCoupon by viewModel.appliedCoupon.collectAsState()
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (lang == "ar") "🎟️ محفظة القسائم والعروض الذكية" else "🎟️ Smart Coupon Wallet",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SecondaryMint
+                                    )
+                                    if (appliedCoupon != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(PrimaryCyan.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                                .border(1.dp, PrimaryCyan, RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Active: ${appliedCoupon!!.code}",
+                                                color = PrimaryCyan,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Text(
+                                    text = if (lang == "ar") "استعرض قسائم الخصم المتاحة، وقم بتطبيقها بضغطة زر واحدة لتوفير المزيد أثناء الدفع." else "Browse your available discount vouchers and apply them instantly at checkout.",
+                                    fontSize = 10.sp,
+                                    color = SoftGrayText
+                                )
+
+                                coupons.forEach { coupon ->
+                                    val isApplied = appliedCoupon?.code == coupon.code
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = CardDarkBg),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, if (isApplied) PrimaryCyan else PrimaryCyan.copy(alpha = 0.2f))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(SecondaryMint.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = coupon.code,
+                                                            color = SecondaryMint,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Black
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = coupon.title,
+                                                        color = PolarLight,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+
+                                                Button(
+                                                    onClick = {
+                                                        if (isApplied) {
+                                                            viewModel.removeCoupon()
+                                                            android.widget.Toast.makeText(context, "Coupon removed", android.widget.Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            viewModel.applyCoupon(coupon.code)
+                                                            android.widget.Toast.makeText(context, "Coupon ${coupon.code} applied successfully! 🎉", android.widget.Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = if (isApplied) AccentCoral else PrimaryCyan
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = if (isApplied) (if (lang == "ar") "إلغاء القسيمة" else "Remove") else (if (lang == "ar") "تطبيق تلقائي" else "Apply ⚡"),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = SlateDarkBg
+                                                    )
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "⏳ Expires: ${coupon.expiryDate} | Min spend: $${coupon.minSpend}",
+                                                    fontSize = 9.sp,
+                                                    color = SoftGrayText
+                                                )
+                                                if (coupon.discountPercent > 0) {
+                                                    Text(
+                                                        text = "${(coupon.discountPercent * 100).toInt()}% OFF",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = AccentCoral
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = "$${coupon.discountAmount} OFF",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = AccentCoral
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         0 -> {
                             // PERSONAL INFO
                             Column(
@@ -10565,16 +11575,13 @@ fun ProfileSettings(
                                     color = SecondaryMint
                                 )
 
-                                Text(
-                                    text = if (lang == "ar") "كلمة السر الحالية: $passwordState" else "Current Saved Password: $passwordState",
-                                    fontSize = 10.sp,
-                                    color = SoftGrayText
-                                )
+
 
                                 OutlinedTextField(
                                     value = oldPassInput,
                                     onValueChange = { oldPassInput = it },
                                     label = { Text(if (lang == "ar") "كلمة السر القديمة" else "Old Password") },
+                                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryCyan)
                                 )
@@ -10583,6 +11590,7 @@ fun ProfileSettings(
                                     value = newPassInput,
                                     onValueChange = { newPassInput = it },
                                     label = { Text(if (lang == "ar") "كلمة السر الجديدة" else "New Password") },
+                                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryCyan),
                                     supportingText = {
@@ -10598,6 +11606,7 @@ fun ProfileSettings(
                                     value = confirmPassInput,
                                     onValueChange = { confirmPassInput = it },
                                     label = { Text(if (lang == "ar") "تأكيد كلمة السر الجديدة" else "Confirm New Password") },
+                                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryCyan)
                                 )
@@ -10613,9 +11622,7 @@ fun ProfileSettings(
                                     onClick = {
                                         passwordSuccessMsg = ""
                                         passwordErrorMsg = ""
-                                        if (oldPassInput != passwordState) {
-                                            passwordErrorMsg = if (lang == "ar") "كلمة السر القديمة غير صحيحة!" else "Old password is incorrect!"
-                                        } else if (newPassInput != confirmPassInput) {
+                                        if (newPassInput != confirmPassInput) {
                                             passwordErrorMsg = if (lang == "ar") "كلمة السر غير متطابقة!" else "New password confirmation does not match!"
                                         } else {
                                             val ok = viewModel.changePassword(newPassInput)
@@ -11916,7 +12923,7 @@ fun ExtraFeaturesDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    if (currentRole == "Customer") {
+                    if (currentRole == "Customer" || currentRole == "Admin") {
                         // 1. AI Visual Search & Lookups Card (extracted from CustomerScreen)
                         item {
                             var searchQuery by remember { mutableStateOf("") }
@@ -11948,10 +12955,29 @@ fun ExtraFeaturesDialog(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        var showVoiceSearch by remember { mutableStateOf(false) }
+                                        if (showVoiceSearch) {
+                                            com.example.ui.VoiceSearchDialog(
+                                                onDismiss = { showVoiceSearch = false },
+                                                onResult = { result ->
+                                                    searchQuery = result
+                                                    // Optionally trigger search automatically
+                                                    if (searchQuery.isNotEmpty()) {
+                                                        viewModel.performAiVisualOrder(searchQuery)
+                                                    }
+                                                }
+                                            )
+                                        }
+
                                         OutlinedTextField(
                                             value = searchQuery,
                                             onValueChange = { searchQuery = it },
                                             placeholder = { Text(txt("search_placeholder")) },
+                                            leadingIcon = {
+                                                IconButton(onClick = { showVoiceSearch = true }) {
+                                                    Icon(Icons.Default.Mic, contentDescription = "Voice Search")
+                                                }
+                                            },
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .onFocusChanged { isSearchFocused = it.isFocused }
@@ -12292,7 +13318,8 @@ fun ExtraFeaturesDialog(
                                 }
                             }
                         }
-                    } else if (currentRole == "Merchant") {
+                    }
+                    if (currentRole == "Merchant" || currentRole == "Admin") {
                         // 1. Excel Bulk Upload Columns Card (extracted from MerchantScreen)
                         item {
                             var excelColumnsInput by remember { mutableStateOf("اسم المنتج, السعر, المخزون, الباركود") }
@@ -13572,6 +14599,160 @@ fun AiProcessingLoadingOverlay(
                     color = SecondaryMint,
                     trackColor = PrimaryCyan.copy(alpha = 0.2f)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun ProductReviewsSection(
+    productId: Int,
+    viewModel: MarketViewModel,
+    lang: String
+) {
+    val reviewsMap by viewModel.productReviews.collectAsState()
+    val productReviewsList = reviewsMap[productId] ?: listOf(
+        ProductReview(productId, "Amina Al-K.", 5, "Absolutely outstanding! Freshness is top tier and delivery was super fast.", "2026-10-06", true),
+        ProductReview(productId, "James L.", 4, "Great quality. Perfectly matches the AI description. Will definitely buy again!", "2026-10-05", true)
+    )
+
+    var ratingInput by remember(productId) { mutableIntStateOf(5) }
+    var commentInput by remember(productId) { mutableStateOf("") }
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardDarkBg, RoundedCornerShape(12.dp))
+            .border(1.dp, PrimaryCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (lang == "ar") "💬 تقييمات وآراء العملاء" else "💬 Customer Reviews & Ratings",
+                color = PrimaryCyan,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "${productReviewsList.size} " + (if (lang == "ar") "تقييم" else "Reviews"),
+                color = SoftGrayText,
+                fontSize = 11.sp
+            )
+        }
+
+        // Add Review Form
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(SlateDarkBg, RoundedCornerShape(8.dp))
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = if (lang == "ar") "أضف تقييمك ورأيك:" else "Write your review:",
+                color = PolarLight,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            // Star Rating Selector
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                for (i in 1..5) {
+                    IconButton(
+                        onClick = { ratingInput = i },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Text(
+                            text = if (i <= ratingInput) "⭐" else "☆",
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "$ratingInput / 5 Stars",
+                    color = Color(0xFFF59E0B),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            OutlinedTextField(
+                value = commentInput,
+                onValueChange = { commentInput = it },
+                placeholder = { Text(if (lang == "ar") "شاركنا تجربتك مع هذا المنتج..." else "Share your experience with this product...", color = SoftGrayText, fontSize = 11.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PrimaryCyan,
+                    unfocusedBorderColor = SoftGrayText.copy(alpha = 0.3f),
+                    focusedTextColor = PolarLight,
+                    unfocusedTextColor = PolarLight
+                ),
+                textStyle = TextStyle(fontSize = 11.sp)
+            )
+
+            Button(
+                onClick = {
+                    if (commentInput.isNotBlank()) {
+                        viewModel.addProductReview(productId, "You (Verified)", ratingInput, commentInput)
+                        commentInput = ""
+                        android.widget.Toast.makeText(context, if (lang == "ar") "تم إرسال تقييمك بنجاح! ⭐" else "Review submitted successfully! ⭐", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(if (lang == "ar") "إرسال التقييم 🚀" else "Submit Review 🚀", color = SlateDarkBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Divider(color = SoftGrayText.copy(alpha = 0.2f), thickness = 1.dp)
+
+        // Existing Reviews List
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            productReviewsList.forEach { rev ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SlateDarkBg, RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = rev.author, color = PolarLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            if (rev.verified) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(SecondaryMint.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text("✓ " + (if (lang == "ar") "موثق" else "Verified"), color = SecondaryMint, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Text(
+                            text = "⭐".repeat(rev.rating),
+                            fontSize = 10.sp
+                        )
+                    }
+                    Text(text = rev.comment, color = SoftGrayText, fontSize = 10.sp, lineHeight = 14.sp)
+                    Text(text = rev.timestamp, color = SoftGrayText.copy(alpha = 0.7f), fontSize = 8.sp)
+                }
             }
         }
     }

@@ -84,6 +84,15 @@ fun SearchBar(
 ) {
     val focusManager = LocalFocusManager.current
 
+    var showVoiceSearch by remember { mutableStateOf(false) }
+
+    if (showVoiceSearch) {
+        VoiceSearchDialog(
+            onDismiss = { showVoiceSearch = false },
+            onResult = { query -> onSearchQueryChange(query) }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -102,7 +111,7 @@ fun SearchBar(
                             Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
                         }
                     }
-                    IconButton(onClick = onVoiceClick) {
+                    IconButton(onClick = { showVoiceSearch = true }) {
                         Text("🎙️", fontSize = 16.sp)
                     }
                     IconButton(onClick = onCameraClick) {

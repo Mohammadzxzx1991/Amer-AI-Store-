@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +12,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,6 +34,10 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 import androidx.compose.ui.res.painterResource
 import com.example.R
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.ui.agent.AnimatedTalkingRobotAssistant
+import com.example.ui.agent.InteractiveRobotRegistration
+import com.example.ui.agent.AuraRobotOnboardingSequence
 
 data class CountryDial(val flag: String, val code: String, val nameEn: String, val nameAr: String)
 
@@ -89,6 +97,7 @@ fun AuthScreen(viewModel: MarketViewModel) {
     var isLoginMode by remember { mutableStateOf(false) } // false = Sign Up, true = Sign In
     var showGoogleAccountPicker by remember { mutableStateOf(false) }
     var showGoogleConsent by remember { mutableStateOf(false) }
+    var showAuraOnboardingSequence by rememberSaveable { mutableStateOf(true) }
 
     // Sign Up Fields
     var name by remember { mutableStateOf("") }
@@ -108,6 +117,10 @@ fun AuthScreen(viewModel: MarketViewModel) {
 
     val roles = listOf("Customer", "Merchant", "Delivery", "Admin")
 
+    val coroutineScope = rememberCoroutineScope()
+    var tapCount by remember { mutableStateOf(0) }
+    var showPosAdmin by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -117,544 +130,236 @@ fun AuthScreen(viewModel: MarketViewModel) {
                 )
             )
             .windowInsetsPadding(WindowInsets.safeDrawing)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                tapCount++
+                if (tapCount >= 5) {
+                    tapCount = 0
+                    coroutineScope.launch {
+                        delay(5000L) // 5 seconds after 5 taps
+                        showPosAdmin = true
+                    }
+                }
+            }
     ) {
-        // Floating Elegant Language Toggle Switch
+        // Floating Top Header Actions: Aura Robot Tour & Language Toggle
         Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(CardDarkBg.copy(alpha = 0.85f))
-                .border(1.dp, PrimaryCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                .clickable { viewModel.toggleLanguage() }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Language Option",
-                tint = PrimaryCyan,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = if (lang == "ar") "English" else "العربية",
-                color = PolarLight,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
+            // Aura Robot Tour Button
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CardDarkBg.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { showAuraOnboardingSequence = true }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SmartToy,
+                        contentDescription = "Aura Robot Tour",
+                        tint = Color(0xFF00E676),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (lang == "ar") "جولة أورا 🤖" else "Aura Tour 🤖",
+                        color = Color(0xFF00E676),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Temporary Owner Quick Access Button (posadmin)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CardDarkBg.copy(alpha = 0.95f),
+                border = BorderStroke(1.5.dp, Color(0xFFFFD700)),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { viewModel.loginDirectAsOwner() }
+                    .testTag("posadmin")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AdminPanelSettings,
+                        contentDescription = "POSAdmin",
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (lang == "ar") "دخول المالك (posadmin) 👑" else "Owner posadmin 👑",
+                        color = Color(0xFFFFD700),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Language Toggle
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardDarkBg.copy(alpha = 0.85f))
+                    .border(1.dp, PrimaryCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .clickable { viewModel.toggleLanguage() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Language Option",
+                    tint = PrimaryCyan,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = if (lang == "ar") "English" else "العربية",
+                    color = PolarLight,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Content
-            Icon(
-                painter = painterResource(id = R.drawable.ic_app_brand_logo),
-                contentDescription = "AI Platform Logo",
-                tint = Color.Unspecified,
+            // Sleek Modern Brand Header
+            Row(
                 modifier = Modifier
-                    .size(80.dp)
-                    .padding(bottom = 12.dp)
-            )
-
-            Text(
-                text = txt("app_title"),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp,
-                color = Color(0xFFB71C1C),
-                textAlign = TextAlign.Center,
-                style = androidx.compose.ui.text.TextStyle(
-                    shadow = androidx.compose.ui.graphics.Shadow(
-                        color = Color(0xFFFF1744),
-                        blurRadius = 16f
-                    )
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_app_brand_logo),
+                    contentDescription = "AI Platform Logo",
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(42.dp)
                 )
-            )
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = txt("app_title"),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF00E676),
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = androidx.compose.ui.graphics.Shadow(
+                                color = Color(0xFF00E676).copy(alpha = 0.5f),
+                                blurRadius = 12f
+                            )
+                        )
+                    )
+                    Text(
+                        text = txt("app_subtitle"),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SoftGrayText
+                    )
+                }
+            }
 
-            Text(
-                text = txt("app_subtitle"),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = SoftGrayText,
-                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
-                textAlign = TextAlign.Center
-            )
+            // Temporary Platform Owner Quick Entry Banner
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CardDarkBg.copy(alpha = 0.95f),
+                border = BorderStroke(1.5.dp, Color(0xFFFFD700)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { viewModel.loginDirectAsOwner() }
+                    .testTag("posadmin_banner_login")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF78350F).copy(alpha = 0.45f), Color(0xFFB45309).copy(alpha = 0.35f), Color(0xFF1E293B))
+                            )
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFD700)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AdminPanelSettings,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = if (lang == "ar") "دخول مالك المنصة دون تسجيل بيانات (posadmin) 👑" else "Direct Owner Login without Credentials (posadmin) 👑",
+                                color = Color(0xFFFFD700),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (lang == "ar") "زر مؤقت يمنحك كامل الصلاحيات والتحكم فوراً" else "Temporary button grants full admin access immediately",
+                                color = PolarLight.copy(alpha = 0.8f),
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = { viewModel.loginDirectAsOwner() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(28.dp).testTag("posadmin_banner_enter")
+                    ) {
+                        Text(
+                            text = if (lang == "ar") "دخول" else "Enter",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
 
             AnimatedVisibility(
                 visible = step == 0,
-                enter = fadeIn(tween(400)) + slideInVertically(initialOffsetY = { 50 }, animationSpec = tween(400))
+                enter = fadeIn(tween(400)) + slideInVertically(initialOffsetY = { 50 }, animationSpec = tween(400)),
+                modifier = Modifier.weight(1f, fill = false)
             ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, PrimaryCyan.copy(alpha = 0.2f), RoundedCornerShape(24.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardDarkBg.copy(alpha = 0.85f)),
-                    shape = RoundedCornerShape(24.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // Sliding Segmented Tab Control (Sign Up vs Sign In)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(SlateDarkBg)
-                                .border(1.dp, SoftGrayText.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable { 
-                                        isLoginMode = false 
-                                        errorMsg = null
-                                    }
-                                    .background(if (!isLoginMode) PrimaryCyan else Color.Transparent),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    txt("sign_up_tab"),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (!isLoginMode) MaterialTheme.colorScheme.onPrimary else PolarLight
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable { 
-                                        isLoginMode = true 
-                                        errorMsg = null
-                                    }
-                                    .background(if (isLoginMode) PrimaryCyan else Color.Transparent),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    txt("sign_in_tab"),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isLoginMode) MaterialTheme.colorScheme.onPrimary else PolarLight
-                                )
-                            }
-                        }
-
-                        if (!isLoginMode) {
-                            // SIGN UP FORM
-                            Text(
-                                text = txt("create_account"),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PolarLight
-                            )
-
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text(txt("full_name")) },
-                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = SecondaryMint) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("name_input"),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryCyan,
-                                    unfocusedBorderColor = SoftGrayText.copy(alpha = 0.3f),
-                                    focusedTextColor = PolarLight,
-                                    unfocusedTextColor = PolarLight
-                                )
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Country Code Selector Box
-                                Box(
-                                    modifier = Modifier
-                                        .height(56.dp)
-                                        .width(100.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(CardDarkBg)
-                                        .border(1.dp, SoftGrayText.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                        .clickable { showCountryDropdown = true }
-                                        .padding(horizontal = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(selectedCountry.flag, fontSize = 20.sp)
-                                        Text(selectedCountry.code, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PolarLight)
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = SoftGrayText, modifier = Modifier.size(16.dp))
-                                    }
-
-                                    DropdownMenu(
-                                        expanded = showCountryDropdown,
-                                        onDismissRequest = { showCountryDropdown = false },
-                                        modifier = Modifier.background(CardDarkBg).heightIn(max = 240.dp)
-                                    ) {
-                                        worldCountries.forEach { country ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Row(
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(country.flag, fontSize = 18.sp)
-                                                        Text(country.code, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PolarLight)
-                                                        Text(if (lang == "ar") country.nameAr else country.nameEn, fontSize = 11.sp, color = SoftGrayText)
-                                                    }
-                                                },
-                                                onClick = {
-                                                    selectedCountry = country
-                                                    showCountryDropdown = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Phone Input text field
-                                OutlinedTextField(
-                                    value = phone,
-                                    onValueChange = { phone = it },
-                                    label = { Text(txt("phone_num")) },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("phone_input"),
-                                    shape = RoundedCornerShape(12.dp),
-                                    singleLine = true,
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = PrimaryCyan,
-                                        unfocusedBorderColor = SoftGrayText.copy(alpha = 0.3f),
-                                        focusedTextColor = PolarLight,
-                                        unfocusedTextColor = PolarLight
-                                    )
-                                )
-                            }
-
-                            OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                label = { Text(txt("email_addr")) },
-                                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = SecondaryMint) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("email_input"),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryCyan,
-                                    unfocusedBorderColor = SoftGrayText.copy(alpha = 0.3f),
-                                    focusedTextColor = PolarLight,
-                                    unfocusedTextColor = PolarLight
-                                )
-                            )
-
-                            // Role Selection
-                            Column {
-                                Text(
-                                    text = txt("select_role"),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SoftGrayText,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    roles.forEach { r ->
-                                        val isSelected = role == r
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(36.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isSelected) PrimaryCyan else CardDarkBg)
-                                                .border(
-                                                    1.dp,
-                                                    if (isSelected) PrimaryCyan else SoftGrayText.copy(alpha = 0.2f),
-                                                    RoundedCornerShape(8.dp)
-                                                )
-                                                .clickable { role = r }
-                                                .wrapContentSize(Alignment.Center)
-                                        ) {
-                                            Text(
-                                                text = when (r) {
-                                                    "Customer" -> txt("role_customer")
-                                                    "Merchant" -> txt("role_merchant")
-                                                    "Delivery" -> txt("role_delivery")
-                                                    "Admin" -> txt("role_admin")
-                                                    else -> r
-                                                },
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) SlateDarkBg else PolarLight
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (errorMsg != null) {
-                                Text(
-                                    text = errorMsg!!,
-                                    color = AccentCoral,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(vertical = 2.dp)
-                                )
-                            }
-
-                            // Sign Up buttons
-                            Button(
-                                onClick = {
-                                    if (name.trim().isEmpty() || (phone.trim().isEmpty() && email.trim().isEmpty())) {
-                                        errorMsg = if (lang == "ar") "يرجى تعبئة الاسم وإما الهاتف أو البريد الإلكتروني للتسجيل." else "Please fill in Name and either Phone or Email to register."
-                                    } else {
-                                        errorMsg = null
-                                        viewModel.initiateRegister(name, selectedCountry.code + phone, email, role)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("register_button"),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Send,
-                                        contentDescription = null,
-                                        tint = onPrimaryColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = txt("request_code"),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = onPrimaryColor
-                                    )
-                                }
-                            }
-
-                            // Google Integration Button
-                            OutlinedButton(
-                                onClick = { showGoogleAccountPicker = true },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("google_signup_btn"),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = PolarLight),
-                                shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountBox,
-                                        contentDescription = "Google Logo",
-                                        tint = SecondaryMint,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = txt("google_signup"),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PolarLight
-                                    )
-                                }
-                            }
-                        } else {
-                            // SIGN IN FORM
-                            Text(
-                                text = txt("sign_in_title"),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PolarLight
-                            )
-
-                            OutlinedTextField(
-                                value = loginEmailOrPhone,
-                                onValueChange = { loginEmailOrPhone = it },
-                                label = { Text(txt("enter_email_phone")) },
-                                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryCyan) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("login_input"),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryCyan,
-                                    unfocusedBorderColor = SoftGrayText.copy(alpha = 0.3f),
-                                    focusedTextColor = PolarLight,
-                                    unfocusedTextColor = PolarLight
-                                )
-                            )
-
-                            OutlinedTextField(
-                                value = loginPassword,
-                                onValueChange = { loginPassword = it },
-                                label = { Text(txt("password")) },
-                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryCyan) },
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("password_input"),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryCyan,
-                                    unfocusedBorderColor = SoftGrayText.copy(alpha = 0.3f),
-                                    focusedTextColor = PolarLight,
-                                    unfocusedTextColor = PolarLight
-                                )
-                            )
-
-                            // Remember Me Checkbox
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = rememberMe,
-                                    onCheckedChange = { rememberMe = it },
-                                    colors = CheckboxDefaults.colors(checkedColor = PrimaryCyan)
-                                )
-                                Text(text = txt("remember_me"), color = PolarLight, fontSize = 12.sp)
-                            }
-
-                            if (errorMsg != null) {
-                                Text(
-                                    text = errorMsg!!,
-                                    color = AccentCoral,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(vertical = 2.dp)
-                                )
-                            }
-
-                            Button(
-                                onClick = {
-                                    if (loginEmailOrPhone.trim().isEmpty() || loginPassword.trim().isEmpty()) {
-                                        errorMsg = if (lang == "ar") "يرجى إدخال البريد الإلكتروني/الهاتف وكلمة المرور." else "Please enter your Email/Phone and Password."
-                                    } else {
-                                        val ok = viewModel.login(loginEmailOrPhone, loginPassword, rememberMe)
-                                        if (!ok) {
-                                            errorMsg = if (lang == "ar") "بيانات الاعتماد غير صحيحة. يرجى التحقق والمحاولة مجدداً." else "Incorrect credentials. Please verify and retry."
-                                        } else {
-                                            errorMsg = null
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("login_confirm_btn"),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    text = txt("access_platform"),
-                                    fontWeight = FontWeight.Black,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
-
-                            // Circular Login Methods
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(text = "Or continue with:", color = SoftGrayText, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                // Google
-                                IconButton(
-                                    onClick = { showGoogleAccountPicker = true },
-                                    modifier = Modifier.size(56.dp).clip(CircleShape).background(CardDarkBg).border(1.dp, PrimaryCyan.copy(alpha = 0.5f), CircleShape)
-                                ) {
-                                    Icon(Icons.Default.AccountBox, contentDescription = "Google", tint = PrimaryCyan)
-                                }
-                                // WhatsApp (Placeholder)
-                                IconButton(
-                                    onClick = { /* Handle WhatsApp */ },
-                                    modifier = Modifier.size(56.dp).clip(CircleShape).background(CardDarkBg).border(1.dp, SecondaryMint.copy(alpha = 0.5f), CircleShape)
-                                ) {
-                                    Icon(Icons.Default.Call, contentDescription = "WhatsApp", tint = SecondaryMint)
-                                }
-                            }
-
-                            // Guest Login
-                            Spacer(modifier = Modifier.height(16.dp))
-                            TextButton(
-                                onClick = { viewModel.loginAsGuest() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(if (lang == "ar") "الدخول كضيف" else "Continue as Guest", color = SoftGrayText, fontSize = 12.sp)
-                            }
-
-                            // Developer Credentials Quick-Fill section
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        loginEmailOrPhone = "zxzx.mohammad91@gmail.com"
-                                        loginPassword = "MoAn2026"
-                                    }
-                                    .border(1.dp, WarmAmbar.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
-                                colors = CardDefaults.cardColors(containerColor = SlateDarkBg.copy(alpha = 0.5f))
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = null,
-                                            tint = WarmAmbar,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = " " + txt("quick_fill"),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = WarmAmbar
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Email: zxzx.mohammad91@gmail.com\nPassword: MoAn2026\nUsername/Admin: admin",
-                                        fontSize = 8.sp,
-                                        color = SoftGrayText,
-                                        lineHeight = 11.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                InteractiveRobotRegistration(viewModel = viewModel)
             }
 
             AnimatedVisibility(
@@ -824,47 +529,15 @@ fun AuthScreen(viewModel: MarketViewModel) {
                                     .background(PrimaryCyan),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("M", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("U", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             }
                             Column {
-                                Text("Mohammad", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PolarLight)
-                                Text("zxzx.Mohammad91@gmail.com", fontSize = 10.sp, color = SoftGrayText)
+                                Text("Verified User", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PolarLight)
+                                Text("user@example.com", fontSize = 10.sp, color = SoftGrayText)
                             }
                         }
                     }
 
-                    // Default Guest options
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showGoogleAccountPicker = false
-                                showGoogleConsent = true
-                            }
-                            .border(1.dp, SoftGrayText.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
-                        colors = CardDefaults.cardColors(containerColor = SlateDarkBg.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(SoftGrayText),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("G", color = SlateDarkBg, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                            Column {
-                                Text("Market Guest", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PolarLight)
-                                Text("guest.marketplace@gmail.com", fontSize = 10.sp, color = SoftGrayText)
-                            }
-                        }
-                    }
                 }
             },
             confirmButton = {},
@@ -922,8 +595,8 @@ fun AuthScreen(viewModel: MarketViewModel) {
                     onClick = {
                         showGoogleConsent = false
                         viewModel.loginWithGoogleSimulated(
-                            name = "Mohammad",
-                            email = "zxzx.mohammad91@gmail.com",
+                            name = "Verified User",
+                            email = "user@example.com",
                             role = role
                         )
                     },
@@ -939,5 +612,78 @@ fun AuthScreen(viewModel: MarketViewModel) {
             },
             containerColor = CardDarkBg
         )
+
+        // Cinematic Dynamic Path Onboarding with AuraRobot
+        if (showAuraOnboardingSequence) {
+            AuraRobotOnboardingSequence(
+                isAr = lang == "ar",
+                onComplete = { showAuraOnboardingSequence = false },
+                onStartRegistration = { showAuraOnboardingSequence = false }
+            )
+        }
+
+        // Posadmin Direct Owner Login Overlay (activated after 5 taps and 5 seconds delay)
+        if (showPosAdmin) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.8f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = CardDarkBg,
+                    border = BorderStroke(2.dp, Color(0xFF00E676)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AdminPanelSettings,
+                            contentDescription = null,
+                            tint = Color(0xFF00E676),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = if (lang == "ar") "وضع المالك المؤقت (PosAdmin)" else "Temporary Owner Mode (PosAdmin)",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = if (lang == "ar") "تم تفعيل الزر بعد 5 ضغطات ومرور 5 ثواني. انقر أدناه للدخول المباشر بصلاحيات كاملة." else "Button activated after 5 taps and 5 seconds. Tap below for direct full admin login.",
+                            color = PolarLight.copy(alpha = 0.8f),
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = {
+                                viewModel.loginDirectAsOwner()
+                            },
+                            modifier = Modifier
+                                .testTag("posadmin")
+                                .height(56.dp)
+                                .fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
+                        ) {
+                            Text(
+                                text = "posadmin",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                        TextButton(onClick = { showPosAdmin = false }) {
+                            Text(if (lang == "ar") "إلغاء" else "Cancel", color = PolarLight.copy(alpha = 0.6f))
+                        }
+                    }
+                }
+            }
+        }
     }
 }

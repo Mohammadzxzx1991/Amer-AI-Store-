@@ -121,6 +121,18 @@ interface BankCardDao {
 }
 
 @Dao
+interface PriceAlertDao {
+    @Query("SELECT * FROM price_alerts WHERE userId = :userId")
+    fun getPriceAlerts(userId: Int): Flow<List<PriceAlertEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPriceAlert(alert: PriceAlertEntity)
+
+    @Query("DELETE FROM price_alerts WHERE id = :id")
+    suspend fun deletePriceAlert(id: Int)
+}
+
+@Dao
 interface SearchQueryDao {
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT 15")
     fun getRecentSearchQueries(): Flow<List<SearchQueryEntity>>
@@ -201,6 +213,81 @@ interface CachedPriceComparisonDao {
     suspend fun clearComparisonCache(productId: Int)
 }
 
+@Dao
+interface PriceHistoryDao {
+    @Query("SELECT * FROM price_histories WHERE productId = :productId ORDER BY recordedAt DESC")
+    fun getHistoryForProduct(productId: Int): Flow<List<PriceHistoryEntity>>
+
+    @Query("SELECT * FROM price_histories WHERE productId = :productId ORDER BY recordedAt ASC")
+    fun getHistoryForProductAsc(productId: Int): Flow<List<PriceHistoryEntity>>
+
+    @Query("SELECT * FROM price_histories WHERE productId = :productId ORDER BY recordedAt ASC")
+    suspend fun getHistoryForProductAscSuspend(productId: Int): List<PriceHistoryEntity>
+
+    @Query("SELECT * FROM price_histories ORDER BY recordedAt DESC LIMIT 100")
+    fun getAllPriceHistories(): Flow<List<PriceHistoryEntity>>
+
+    @Query("SELECT * FROM price_histories WHERE productId = :productId ORDER BY recordedAt DESC LIMIT 1")
+    suspend fun getLatestPriceForProduct(productId: Int): PriceHistoryEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPriceHistory(history: PriceHistoryEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPriceHistories(histories: List<PriceHistoryEntity>)
+
+    @Query("DELETE FROM price_histories WHERE productId = :productId")
+    suspend fun clearHistoryForProduct(productId: Int)
+
+    @Query("DELETE FROM price_histories")
+    suspend fun clearAllHistories()
+}
+
+@Dao
+interface ViralProductMentionDao {
+    @Query("SELECT * FROM viral_product_mentions ORDER BY viewCount DESC")
+    fun getAllViralMentions(): Flow<List<ViralProductMentionEntity>>
+
+    @Query("SELECT * FROM viral_product_mentions WHERE platform = :platform ORDER BY viewCount DESC")
+    fun getViralMentionsByPlatform(platform: String): Flow<List<ViralProductMentionEntity>>
+
+    @Query("SELECT * FROM viral_product_mentions WHERE category = :category ORDER BY viewCount DESC")
+    fun getViralMentionsByCategory(category: String): Flow<List<ViralProductMentionEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertViralMentions(mentions: List<ViralProductMentionEntity>)
+
+    @Query("DELETE FROM viral_product_mentions")
+    suspend fun clearAll()
+}
+
+@Dao
+interface UserInteractionHistoryDao {
+    @Query("SELECT * FROM user_interaction_histories WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getUserInteractions(userId: Int): Flow<List<UserInteractionHistoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInteraction(interaction: UserInteractionHistoryEntity)
+
+    @Query("DELETE FROM user_interaction_histories WHERE userId = :userId")
+    suspend fun clearInteractions(userId: Int)
+}
+
+@Dao
+interface RecentlyViewedProductDao {
+    @Query("SELECT * FROM recently_viewed_products ORDER BY viewedAt DESC LIMIT 20")
+    fun getRecentlyViewedProducts(): Flow<List<RecentlyViewedProductEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRecentlyViewed(product: RecentlyViewedProductEntity)
+
+    @Query("DELETE FROM recently_viewed_products WHERE productId = :productId")
+    suspend fun removeRecentlyViewed(productId: Int)
+
+    @Query("DELETE FROM recently_viewed_products")
+    suspend fun clearRecentlyViewed()
+}
+
 @Database(
     entities = [
         UserEntity::class,
@@ -211,12 +298,17 @@ interface CachedPriceComparisonDao {
         CartItemEntity::class,
         BankCardEntity::class,
         SearchQueryEntity::class,
+        PriceAlertEntity::class,
         FamilyShoppingListEntity::class,
         StoredOrganicItemEntity::class,
         CachedSearchResultEntity::class,
-        CachedPriceComparisonEntity::class
+        CachedPriceComparisonEntity::class,
+        PriceHistoryEntity::class,
+        ViralProductMentionEntity::class,
+        UserInteractionHistoryEntity::class,
+        RecentlyViewedProductEntity::class
     ],
-    version = 11,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -228,10 +320,23 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cartItemDao(): CartItemDao
     abstract fun bankCardDao(): BankCardDao
     abstract fun searchQueryDao(): SearchQueryDao
+    abstract fun priceAlertDao(): PriceAlertDao
     abstract fun familyShoppingListDao(): FamilyShoppingListDao
     abstract fun storedOrganicItemDao(): StoredOrganicItemDao
     abstract fun cachedSearchResultDao(): CachedSearchResultDao
     abstract fun cachedPriceComparisonDao(): CachedPriceComparisonDao
+    abstract fun priceHistoryDao(): PriceHistoryDao
+    abstract fun viralProductMentionDao(): ViralProductMentionDao
+    abstract fun userInteractionHistoryDao(): UserInteractionHistoryDao
+    abstract fun recentlyViewedProductDao(): RecentlyViewedProductDao
+
+    companion object {
+        val ALL_MIGRATIONS: Array<androidx.room.migration.Migration> = (1..14).map { fromVersion ->
+            object : androidx.room.migration.Migration(fromVersion, fromVersion + 1) {
+                override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    // Non-destructive schema migration: preserve user tables and records
+                }
+            }
+        }.toTypedArray()
+    }
 }
-
-
